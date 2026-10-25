@@ -6,77 +6,151 @@
   <title>แดชบอร์ด — บันทึกเวลาเข้า-ออกงาน</title>
   <link rel="stylesheet" href="/static/style.css">
   <style>
-    .page { max-width: 64rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; display: grid; gap: 1.5rem; }
-    .top { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
-    .top a { color: var(--stamp); display: inline-flex; align-items: center; min-height: 44px; }
+    /* หัววันที่ติดขอบบนตอนเลื่อน: เผื่อที่ให้ element ที่ได้โฟกัสไม่ถูกบัง */
+    html { scroll-padding-block-start: 3rem; }
+    body { background: var(--color-bg-surface); }
 
-    .filters { padding: 1rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: 0.75rem; align-items: end; }
+    .page { display: grid; gap: var(--space-5); max-width: 68rem; margin: 0 auto; padding: var(--space-5) var(--space-5) var(--space-6); }
 
-    .result-head { display: grid; gap: 0.35rem; }
-    .result-head h2 { font-size: 1.25rem; }
-    .counts { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; }
+    .bar { display: flex; justify-content: space-between; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
+    .bar .btn { min-height: 44px; padding-inline: var(--space-4); }
 
-    .table-wrap { overflow-x: auto; }
-    table { width: 100%; border-collapse: collapse; min-width: 38rem; }
-    th, td { padding: 0.65rem 1rem; text-align: left; vertical-align: middle; }
-    thead th { font-weight: 600; font-size: 0.875rem; color: var(--ink-soft); border-bottom: 1px solid var(--line); }
-    tbody td { border-bottom: 1px solid var(--line); }
-    tbody:last-of-type tr:last-child td { border-bottom: 0; }
-    .group th { background: var(--paper); font-weight: 600; font-size: 0.9375rem; border-bottom: 1px solid var(--line); }
+    /* ตัวกรอง: select 2 ช่องในแถวเดียว เลือก "กำหนดเอง" แล้วช่องวันที่จึงปรากฏ */
+    .filters {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 16rem));
+      gap: var(--space-4);
+      align-items: end;
+      padding-block: var(--space-5);
+      border-block: 1px solid var(--color-separator);
+    }
+    .range { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 16rem)); gap: var(--space-4); align-items: end; }
 
-    .name-btn { font: inherit; font-weight: 600; background: none; border: 0; padding: 0; min-height: 44px;
-      color: var(--stamp); cursor: pointer; text-align: left; display: inline-flex; align-items: center; gap: 0.4rem; }
-    .name-btn::after { content: ""; width: 0.45rem; height: 0.45rem; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
-      transform: rotate(45deg) translateY(-2px); }
-    .name-btn[aria-expanded="true"]::after { transform: rotate(-135deg) translateY(-2px); }
-    .name-btn:hover { text-decoration: underline; text-underline-offset: 3px; }
-    .muted { color: var(--ink-soft); }
+    .result-head { display: grid; gap: var(--space-3); }
+    .counts { display: flex; flex-wrap: wrap; gap: var(--space-2); padding: 0; list-style: none; }
 
-    .detail > td { background: #fafbfd; }
-    .photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: 0.75rem; padding: 0.25rem 0; }
-    .shot { margin: 0; display: grid; gap: 0.3rem; }
-    .shot img, .shot .missing { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; border-radius: var(--radius-control); background: var(--paper); }
-    .shot .missing { display: grid; place-items: center; text-align: center; color: var(--ink-soft); font-size: 0.875rem;
-      padding: 0.75rem; border: 1px dashed var(--control-border); }
-    .shot figcaption { font-size: 0.875rem; }
+    /* ---- ตาราง (จอกว้าง) ---- */
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: var(--space-3) var(--space-4); text-align: start; vertical-align: middle; }
+    thead th { font-size: var(--text-caption); font-weight: 400; color: var(--color-text-secondary); border-bottom: 1px solid var(--color-border-strong); }
+    tbody td { border-bottom: 1px solid var(--color-separator); }
+    .col-num { text-align: end; }
+    .group th { position: sticky; top: 0; z-index: 1; padding-block: var(--space-2); font-size: var(--text-caption); font-weight: 600; background: var(--color-bg-sunken); border-bottom: 1px solid var(--color-separator); }
+    .detail > td { background: var(--color-bg-sunken); }
 
-    .empty { padding: 3rem 1rem; text-align: center; display: grid; gap: 0.25rem; }
-    .empty strong { font-size: 1.0625rem; }
+    .name-btn {
+      display: inline-flex; align-items: center; gap: var(--space-2);
+      min-height: 44px; padding: 0;
+      font: inherit; font-weight: 600; text-align: start;
+      color: var(--color-accent-text); background: none; border: 0; cursor: pointer;
+    }
+    .name-btn::after {
+      content: ""; flex: none; width: 7px; height: 7px;
+      border-inline-end: 2px solid currentColor; border-block-end: 2px solid currentColor;
+      transform: rotate(45deg) translate(-1px, -1px);
+    }
+    .name-btn[aria-expanded="true"]::after { transform: rotate(-135deg) translate(-1px, -1px); }
+    @media (hover: hover) { .name-btn:hover { text-decoration: underline; text-underline-offset: 0.25em; } }
+    @media (prefers-reduced-motion: no-preference) { .name-btn::after { transition: transform 150ms ease-out; } }
+
+    .photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: var(--space-4); }
+    .shot { display: grid; gap: var(--space-2); }
+    .shot .photo, .shot .missing { aspect-ratio: 3 / 4; }
+    .shot .missing { display: grid; place-items: center; padding: var(--space-3); text-align: center; font-size: var(--text-caption); color: var(--color-text-secondary); border: 1px dashed var(--color-border-default); border-radius: var(--radius-control); }
+
+    .empty { display: grid; gap: var(--space-1); padding: var(--space-6) var(--space-4); text-align: center; border-bottom: 1px solid var(--color-separator); }
+
+    /* ---- จอแคบ (โทรศัพท์): แถวละ 2 บรรทัด ไม่เลื่อนข้าง ไม่ซ้ำหัวคอลัมน์ทุกแถว ---- */
+    @media (max-width: 40rem) {
+      .page { gap: var(--space-4); padding: var(--space-4) var(--space-4) var(--space-6); }
+      h1 { font-size: var(--text-heading); }
+
+      .filters { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); padding-block: var(--space-4); }
+      .range { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+      .range .btn { grid-column: 1 / -1; }
+
+      table, tbody { display: block; }
+      thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+      tr.person {
+        display: grid;
+        grid-template-columns: auto auto minmax(0, 1fr);
+        grid-template-areas: "name name status" "in out hours";
+        gap: 0 var(--space-4);
+        align-items: baseline;
+        padding: var(--space-1) 0 var(--space-3);
+        border-bottom: 1px solid var(--color-separator);
+      }
+      tr.person > td { display: block; padding: 0; border: 0; }
+      td.c-name { grid-area: name; }
+      td.c-status { grid-area: status; justify-self: end; align-self: center; }
+      td.c-in { grid-area: in; }
+      td.c-out { grid-area: out; }
+      td.c-hours { grid-area: hours; justify-self: end; }
+      td[data-short]::before { content: attr(data-short) "\00a0"; font-size: var(--text-caption); color: var(--color-text-secondary); }
+      tr.person > td.is-empty { display: none; }
+      .col-num { text-align: start; }
+
+      tr.group, tr.detail { display: block; }
+      /* แถวหัววันที่เป็นตัวติดขอบ (ไม่ใช่ th) เพราะ th ถูกกักอยู่ในแถวของตัวเอง ติดไม่ได้ */
+      tr.group { position: sticky; top: 0; z-index: 1; }
+      tr.group > th, tr.detail > td { display: block; }
+      tr.group > th { padding-inline: var(--space-3); }
+      tr.detail > td { padding: var(--space-3); }
+      .photos { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+    }
   </style>
 </head>
 <body>
   <main class="page">
-    <div class="top">
+    <header class="bar">
       <h1>แดชบอร์ด</h1>
-      <a href="/">ไปหน้าบันทึกเวลา</a>
-    </div>
+      <nav aria-label="สลับหน้า">
+        <a class="btn" href="/">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          ไปหน้าบันทึกเวลา
+        </a>
+      </nav>
+    </header>
 
     <!-- UC6 -->
-    <form class="surface filters" id="filters" aria-label="กรองข้อมูล">
-      <label class="field">ตั้งแต่วันที่
-        <input type="date" id="from" required>
-      </label>
-      <label class="field">ถึงวันที่
-        <input type="date" id="to" required>
+    <section class="filters" aria-label="กรองข้อมูล">
+      <label class="field">ช่วงเวลา
+        <select id="period">
+          <option value="today">วันนี้</option>
+          <option value="yesterday">เมื่อวาน</option>
+          <option value="7">7 วันล่าสุด</option>
+          <option value="30">30 วันล่าสุด</option>
+          <option value="custom">กำหนดเอง</option>
+        </select>
       </label>
       <label class="field">พนักงาน
         <select id="employee">
           <option value="">ทุกคน</option>
         </select>
       </label>
-      <button class="btn btn-primary" type="submit">แสดงข้อมูล</button>
-    </form>
+      <form class="range" id="filters" aria-label="ช่วงวันที่ที่กำหนดเอง" hidden>
+        <label class="field">ตั้งแต่วันที่
+          <input type="date" id="from" required>
+        </label>
+        <label class="field">ถึงวันที่
+          <input type="date" id="to" required>
+        </label>
+        <button class="btn btn-primary" type="submit">แสดงข้อมูล</button>
+      </form>
+    </section>
 
-    <div id="notice" class="notice notice-error" role="alert" hidden></div>
+    <div class="notice" id="notice" role="alert"></div>
 
     <!-- UC5 -->
     <section class="result-head" aria-live="polite">
       <h2 id="result-title"></h2>
-      <p class="counts" id="counts"></p>
+      <ul class="counts" id="counts"></ul>
     </section>
-    <div class="surface table-wrap" id="table-wrap"></div>
+    <div id="table-wrap"></div>
   </main>
 
+  <script src="/static/common.js"></script>
   <script src="/static/boss.js"></script>
 </body>
 </html>

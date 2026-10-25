@@ -6,43 +6,69 @@
   <title>บันทึกเวลาเข้า-ออกงาน</title>
   <link rel="stylesheet" href="/static/style.css">
   <style>
-    .page { max-width: 28rem; margin: 0 auto; padding: 1.25rem 1rem 2.5rem; display: grid; gap: 1.25rem; }
-    .date { color: var(--ink-soft); margin-top: 0.15rem; }
+    /* หน้านี้ใช้บนมือถือเป็นหลัก: แผ่นกระดาษเดียวเต็มจอ บนจอกว้างเป็นแถบกลางหน้า */
+    .sheet {
+      display: grid;
+      align-content: start;
+      gap: var(--space-5);
+      max-width: 30rem;
+      min-height: 100dvh;
+      margin: 0 auto;
+      padding: var(--space-5) var(--space-5) var(--space-6);
+      background: var(--color-bg-surface);
+    }
+    @media (min-width: 30.0625rem) {
+      .sheet { border-inline: 1px solid var(--color-separator); }
+    }
 
-    /* บัตรตอกเวลา — องค์ประกอบเดียวของหน้าที่มีพื้นผิว */
-    .timecard { padding: 1.25rem; display: grid; gap: 1rem; }
-    .hours { font-size: 2.5rem; font-weight: 700; line-height: 1.15; }
-    .hours small { font-size: 1rem; font-weight: 500; color: var(--ink-soft); margin: 0 0.75rem 0 0.25rem; }
-    .hours.is-text { font-size: 1.5rem; }
-    .note { color: var(--ink-soft); }
-    .scale { display: flex; justify-content: space-between; font-size: 0.8125rem; color: var(--ink-soft); margin-top: 0.3rem; }
+    .masthead { display: grid; gap: var(--space-1); }
 
-    /* รายการเข้า-ออกเหมือนบรรทัดบนบัตรตอก: เวลาเป็นหมึกประทับ */
-    .stamps { list-style: none; margin: 0; padding: 0.75rem 0 0; border-top: 1px dashed var(--control-border); display: grid; gap: 0.35rem; }
-    .stamps li { display: flex; justify-content: space-between; align-items: baseline; }
-    .stamps .t { font-weight: 700; color: var(--stamp); font-size: 1.0625rem; }
-    .stamps .empty { color: var(--ink-soft); }
+    /* ส่วนชั่วโมงสะสม: แบ่งด้วยเส้นบางและช่องไฟ ไม่ใช้กรอบ */
+    .day { display: grid; gap: var(--space-4); padding-top: var(--space-5); border-top: 1px solid var(--color-separator); }
 
-    .clock-btn { width: 100%; min-height: 64px; font-size: 1.25rem; }
+    /* ตัวเลขชั่วโมงคือสิ่งเดียวบนหน้าที่ตั้งใจให้เด่น */
+    .figure {
+      font-size: var(--text-figure);
+      font-weight: 600;
+      line-height: 1.05;
+      letter-spacing: -0.02em;        /* ใช้กับตัวเลขละตินเท่านั้น ไม่ใช้กับข้อความไทย */
+    }
+    .figure small { margin: 0 var(--space-3) 0 var(--space-1); font-size: var(--text-heading); font-weight: 400; letter-spacing: 0; color: var(--color-text-secondary); }
+    .figure.is-text { font-size: var(--text-title); line-height: 1.3; letter-spacing: 0; }
 
-    .photo-step { padding: 1rem; display: grid; gap: 0.75rem; }
-    .preview { width: 100%; max-height: 22rem; object-fit: cover; border-radius: var(--radius-control); background: var(--paper); }
-    .camera-btn { display: flex; align-items: center; justify-content: center; }
-    #photo:focus-visible + .camera-btn { outline: 3px solid var(--stamp); outline-offset: 2px; }
-    .pair { display: grid; grid-template-columns: 1fr 1.4fr; gap: 0.75rem; }
+    /* เทปชั่วโมง: 8 ช่อง = 8 ชั่วโมง */
+    .tape { display: grid; grid-template-columns: repeat(8, 1fr); gap: var(--space-1); }
+    .tape-cell { position: relative; height: 12px; overflow: hidden; background: var(--color-bg-sunken); border: 1px solid var(--color-border-default); border-radius: 2px; }
+    .tape-cell > i { position: absolute; inset-block: 0; inset-inline-start: 0; background: var(--color-accent-solid); }
+    .tape.is-full .tape-cell > i { background: var(--color-success-solid); }
+    .tape-scale { display: flex; justify-content: space-between; margin-top: var(--space-1); }
 
-    .done { padding: 1.5rem 1rem; display: grid; gap: 0.25rem; justify-items: center; text-align: center; }
-    .done .time { font-size: 2.5rem; font-weight: 700; color: var(--stamp); line-height: 1.2; }
-    .done .btn { margin-top: 0.75rem; min-width: 8rem; }
+    /* รายการเข้า-ออก: เวลาชิดขวาเป็นหลักเดียวกัน */
+    .log { display: grid; gap: var(--space-2); padding: 0; list-style: none; }
+    .log li { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-4); }
+    .log .t { font-weight: 600; }
 
-    .to-dashboard { display: flex; align-items: center; justify-content: center; text-decoration: none; }
+    .clock-btn { width: 100%; min-height: 64px; font-size: var(--text-heading); }
+
+    .photo-step { display: grid; gap: var(--space-4); }
+    .preview { max-height: 22rem; }
+    .camera-btn { width: 100%; }
+    #photo:focus-visible + .camera-btn { outline: 3px solid var(--color-focus-ring); outline-offset: 2px; }
+    .pair { display: grid; grid-template-columns: 1fr 1.4fr; gap: var(--space-3); }
+
+    .done { display: grid; gap: var(--space-2); justify-items: center; padding: var(--space-5) 0; text-align: center; }
+    .done .figure { color: var(--color-accent-text); }
+    .done .btn { margin-top: var(--space-4); width: 100%; }
+
+    .foot { padding-top: var(--space-5); border-top: 1px solid var(--color-separator); }
+    .foot .btn { width: 100%; }
   </style>
 </head>
 <body>
-  <main class="page">
-    <header>
+  <main class="sheet">
+    <header class="masthead">
       <h1>บันทึกเวลาเข้า-ออกงาน</h1>
-      <p class="date" id="today-label"></p>
+      <p class="muted" id="today-label"></p>
     </header>
 
     <!-- UC1 -->
@@ -52,29 +78,30 @@
       </select>
     </label>
 
-    <div id="notice" class="notice notice-error" role="alert" hidden></div>
+    <!-- region ต้องมีใน DOM ตั้งแต่แรก แล้วค่อยใส่ข้อความ -->
+    <div class="notice" id="notice" role="alert"></div>
 
     <!-- UC4 -->
-    <section class="surface timecard" id="status" aria-labelledby="status-h" hidden>
+    <section class="day" id="status" aria-labelledby="status-h" hidden>
       <h2 id="status-h">ชั่วโมงทำงานสะสมวันนี้</h2>
       <div>
-        <p class="hours num" id="hours"></p>
-        <p class="note" id="hours-note"></p>
+        <p class="figure num" id="hours"></p>
+        <p class="muted" id="hours-note"></p>
       </div>
       <div>
-        <div class="punch" id="punch" role="img"></div>
-        <div class="scale" aria-hidden="true"><span>0 ชม.</span><span>8 ชม.</span></div>
+        <div class="tape" id="tape" role="img"></div>
+        <div class="tape-scale caption muted num" aria-hidden="true"><span>0 ชม.</span><span>8 ชม.</span></div>
       </div>
-      <ul class="stamps num" id="stamps" aria-label="รายการเข้า-ออกงานวันนี้"></ul>
+      <ul class="log num" id="log" aria-label="รายการเข้า-ออกงานวันนี้"></ul>
     </section>
 
     <!-- UC2 / UC3 -->
     <section id="action" aria-label="บันทึกเวลา" hidden>
       <button class="btn btn-primary clock-btn" id="clock-btn" type="button"></button>
 
-      <div class="surface photo-step" id="photo-step" hidden>
+      <div class="photo-step" id="photo-step" hidden>
         <p id="photo-hint"></p>
-        <img class="preview" id="preview" alt="รูปที่เพิ่งถ่าย" hidden>
+        <img class="photo preview" id="preview" alt="รูปที่เพิ่งถ่าย" hidden>
         <input class="visually-hidden" id="photo" type="file" accept="image/*" capture="user">
         <label class="btn camera-btn" id="camera-label" for="photo">ถ่ายรูป</label>
         <div class="pair">
@@ -83,17 +110,28 @@
         </div>
       </div>
 
-      <div class="surface done" id="done" hidden role="status">
+      <div class="done" id="done" hidden>
         <p id="done-label"></p>
-        <p class="time num" id="done-time"></p>
-        <p class="note">เวลาตามนาฬิกาของระบบ</p>
-        <button class="btn" id="done-btn" type="button">ตกลง</button>
+        <p class="figure num" id="done-time"></p>
+        <p class="muted caption">เวลาตามนาฬิกาเซิร์ฟเวอร์</p>
+        <button class="btn" id="done-btn" type="button">เสร็จสิ้น</button>
       </div>
     </section>
 
-    <a class="btn to-dashboard" href="/boss">ไปหน้าแดชบอร์ด</a>
+    <footer class="foot">
+      <nav aria-label="สลับหน้า">
+        <a class="btn" href="/boss">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+          ไปหน้าแดชบอร์ด
+        </a>
+      </nav>
+    </footer>
+
+    <!-- ประกาศผลสำเร็จให้ screen reader: อยู่ใน DOM ตลอด -->
+    <p class="visually-hidden" id="announce" role="status"></p>
   </main>
 
+  <script src="/static/common.js"></script>
   <script src="/static/worker.js"></script>
 </body>
 </html>

@@ -1,212 +1,223 @@
 // หน้าพนักงาน (UC1–UC4) เดินตาม flowchart ส่วนที่ 1
+// ต้องโหลด common.js ก่อน
 const FULL_DAY_MINUTES = 480;
 const NETWORK_ERROR = "เชื่อมต่อระบบไม่ได้ ตรวจสอบว่าต่อ Wi-Fi ของออฟฟิศอยู่ แล้วลองอีกครั้ง";
 const LABEL = { in: "เข้างาน", out: "ออกงาน" };
 
-const $ = (id) => document.getElementById(id);
-const state = { employeeId: null, nextType: null, photo: null, previewUrl: null };
-
-$("today-label").textContent = new Date().toLocaleDateString("th-TH", {
-  weekday: "long", day: "numeric", month: "long", year: "numeric",
-});
-
-// ---------- ตัวช่วย ----------
-
-async function api(path, options) {
-  let res;
-  let body;
-  try {
-    res = await fetch(path, options);
-    body = await res.json();
-  } catch {
-    throw new Error(NETWORK_ERROR);
-  }
-  if (!res.ok || body.ok === false) throw new Error(body.message || NETWORK_ERROR);
-  return body;
-}
-
-function showError(message) {
-  $("notice").textContent = message;
-  $("notice").hidden = false;
-}
-function clearError() { $("notice").hidden = true; }
-
 // เซิร์ฟเวอร์ส่ง ISO ที่มี +07:00 เสมอ (contract) จึงตัด HH:MM ได้ตรงๆ ไม่ต้องแปลงเขตเวลา
 const hhmm = (iso) => iso.slice(11, 16);
+const hoursText = (m) => `${Math.floor(m / 60)} ชม. ${m % 60} นาที`;
 
-function hoursText(minutes) {
-  return `${Math.floor(minutes / 60)} ชม. ${minutes % 60} นาที`;
-}
+class WorkerPage {
+  constructor(api, notice) {
+    this.api = api;
+    this.notice = notice;
+    this.employeeId = null;
+    this.nextType = null;
+    this.photo = null;
+    this.previewUrl = null;
+  }
 
-// ---------- UC1: รายชื่อ ----------
+  init() {
+    $("today-label").textContent = new Date().toLocaleDateString("th-TH", {
+      weekday: "long", day: "numeric", month: "long", year: "numeric",
+    });
+    this.bindEvents();
+    this.loadEmployees();
+  }
 
-async function loadEmployees() {
-  try {
-    for (const e of await api("/api/employees")) {
-      const opt = document.createElement("option");
-      opt.value = e.id;
-      opt.textContent = e.name;
-      $("employee").appendChild(opt);
+  bindEvents() {
+    $("employee").addEventListener("change", (e) => this.onEmployeeChange(e));
+    $("clock-btn").addEventListener("click", () => this.onClockClick());
+    $("photo").addEventListener("change", (e) => this.onPhotoChange(e));
+    $("cancel-btn").addEventListener("click", () => this.onCancel());
+    $("confirm-btn").addEventListener("click", () => this.onConfirm());
+    $("done-btn").addEventListener("click", () => this.onDone());
+  }
+
+  // ---------- UC1: รายชื่อ ----------
+
+  async loadEmployees() {
+    try {
+      for (const e of await this.api.request("/api/employees")) {
+        const opt = document.createElement("option");
+        opt.value = e.id;
+        opt.textContent = e.name;
+        $("employee").appendChild(opt);
+      }
+    } catch (err) {
+      this.notice.show(err.message);
     }
-  } catch (err) {
-    showError(err.message);
-  }
-}
-
-// ---------- UC4: ชั่วโมงสะสมวันนี้ ----------
-
-function renderHours(data) {
-  const hours = $("hours");
-  const note = $("hours-note");
-  hours.classList.toggle("is-text", !data.is_complete);
-
-  if (!data.is_complete) {
-    // alternative flow ของ UC4: มีรอบที่ยังไม่ออกงาน → ไม่แสดงตัวเลข
-    const openIn = data.events.filter((e) => e.type === "in").at(-1);
-    hours.textContent = "ข้อมูลยังไม่ครบ";
-    note.textContent = `เข้างานเมื่อ ${hhmm(openIn.recorded_at)} น. ชั่วโมงของรอบนี้จะนับเมื่อบันทึกออกงาน`;
-  } else {
-    const m = data.worked_minutes;
-    hours.innerHTML = `${Math.floor(m / 60)}<small>ชม.</small>${m % 60}<small>นาที</small>`;
-    note.textContent = m >= FULL_DAY_MINUTES
-      ? "ครบ 8 ชั่วโมงแล้ว"
-      : `ขาดอีก ${hoursText(FULL_DAY_MINUTES - m)} จึงจะครบ 8 ชั่วโมง`;
   }
 
-  const done = data.is_complete ? data.worked_minutes : 0;
-  const cells = [];
-  for (let i = 0; i < 8; i++) {
-    const fill = Math.max(0, Math.min(1, (done - i * 60) / 60));
-    cells.push(`<span class="punch-cell"><i style="width:${fill * 100}%"></i></span>`);
+  // ---------- UC4: ชั่วโมงสะสมวันนี้ ----------
+
+  renderHours(data) {
+    const hours = $("hours");
+    hours.classList.toggle("is-text", !data.is_complete);
+
+    if (!data.is_complete) {
+      // alternative flow ของ UC4: มีรอบที่ยังไม่ออกงาน → ไม่แสดงตัวเลข
+      const openIn = data.events.filter((e) => e.type === "in").at(-1);
+      hours.textContent = "ข้อมูลยังไม่ครบ";
+      $("hours-note").textContent = `เข้างานเมื่อ ${hhmm(openIn.recorded_at)} น. ชั่วโมงของรอบนี้จะนับเมื่อบันทึกออกงาน`;
+    } else {
+      const m = data.worked_minutes;
+      hours.innerHTML = `${Math.floor(m / 60)}<small>ชม.</small>${m % 60}<small>นาที</small>`;
+      $("hours-note").textContent = m >= FULL_DAY_MINUTES
+        ? "ครบ 8 ชั่วโมงแล้ว"
+        : `ขาดอีก ${hoursText(FULL_DAY_MINUTES - m)} จึงจะครบ 8 ชั่วโมง`;
+    }
+
+    const done = data.is_complete ? data.worked_minutes : 0;
+    const cells = [];
+    for (let i = 0; i < 8; i++) {
+      const fill = Math.max(0, Math.min(1, (done - i * 60) / 60));
+      cells.push(`<span class="tape-cell"><i style="width:${fill * 100}%"></i></span>`);
+    }
+    const tape = $("tape");
+    tape.innerHTML = cells.join("");
+    tape.classList.toggle("is-full", done >= FULL_DAY_MINUTES);
+    tape.setAttribute("aria-label", data.is_complete
+      ? `ทำงานแล้ว ${hoursText(done)} จากเกณฑ์ 8 ชั่วโมง`
+      : "ข้อมูลยังไม่ครบ");
   }
-  const punch = $("punch");
-  punch.innerHTML = cells.join("");
-  punch.classList.toggle("is-full", done >= FULL_DAY_MINUTES);
-  punch.setAttribute("aria-label", data.is_complete
-    ? `ทำงานแล้ว ${hoursText(done)} จากเกณฑ์ 8 ชั่วโมง`
-    : "ข้อมูลยังไม่ครบ");
-}
 
-function renderStamps(events) {
-  const list = $("stamps");
-  list.replaceChildren();
-  if (events.length === 0) {
-    const li = document.createElement("li");
-    li.className = "empty";
-    li.textContent = "วันนี้ยังไม่มีการบันทึกเวลา";
-    list.appendChild(li);
-    return;
+  renderLog(events) {
+    const list = $("log");
+    list.replaceChildren();
+    if (events.length === 0) {
+      const li = document.createElement("li");
+      li.className = "muted";
+      li.textContent = "วันนี้ยังไม่มีการบันทึกเวลา";
+      list.appendChild(li);
+      return;
+    }
+    for (const ev of events) {
+      const li = document.createElement("li");
+      const label = document.createElement("span");
+      label.textContent = LABEL[ev.type];
+      const time = document.createElement("span");
+      time.className = "t";
+      time.textContent = hhmm(ev.recorded_at) + " น.";
+      li.append(label, time);
+      list.appendChild(li);
+    }
   }
-  for (const ev of events) {
-    const li = document.createElement("li");
-    const label = document.createElement("span");
-    label.textContent = LABEL[ev.type];
-    const time = document.createElement("span");
-    time.className = "t";
-    time.textContent = hhmm(ev.recorded_at) + " น.";
-    li.append(label, time);
-    list.appendChild(li);
+
+  // โหลดและแสดงสถานะวันนี้ โดยไม่แตะขั้นตอนที่หน้าจออยู่
+  async refreshStatus() {
+    const data = await this.api.request("/api/me/today?employee_id=" + this.employeeId);
+    this.renderHours(data);
+    this.renderLog(data.events);
+
+    // ปุ่มเดียว ระบบเลือกประเภทให้จากสถานะล่าสุด (จุดตัดสินใจใน flowchart)
+    this.nextType = data.last_type === "in" ? "out" : "in";
+    $("clock-btn").textContent = "บันทึก" + LABEL[this.nextType];
   }
-}
 
-async function loadToday() {
-  const data = await api("/api/me/today?employee_id=" + state.employeeId);
-  renderHours(data);
-  renderStamps(data.events);
-
-  // ปุ่มเดียว ระบบเลือกประเภทให้จากสถานะล่าสุด (จุดตัดสินใจใน flowchart)
-  state.nextType = data.last_type === "in" ? "out" : "in";
-  $("clock-btn").textContent = "บันทึก" + LABEL[state.nextType];
-
-  $("status").hidden = false;
-  $("action").hidden = false;
-  showStep("start");
-}
-
-// ---------- UC2 / UC3: ถ่ายรูปและบันทึก ----------
-
-function clearPhoto() {
-  if (state.previewUrl) URL.revokeObjectURL(state.previewUrl);
-  state.photo = null;
-  state.previewUrl = null;
-  $("photo").value = "";
-  $("preview").hidden = true;
-  $("preview").removeAttribute("src");
-  $("camera-label").textContent = "ถ่ายรูป";
-  $("confirm-btn").disabled = true;
-}
-
-function showStep(step) {
-  $("clock-btn").hidden = step !== "start";
-  $("photo-step").hidden = step !== "photo";
-  $("done").hidden = step !== "done";
-  if (step !== "photo") clearPhoto();
-}
-
-$("employee").addEventListener("change", async (e) => {
-  clearError();
-  state.employeeId = e.target.value || null;
-  $("status").hidden = true;
-  $("action").hidden = true;
-  if (!state.employeeId) return;
-  try {
-    await loadToday();
-  } catch (err) {
-    showError(err.message);
+  async loadToday() {
+    await this.refreshStatus();
+    $("action").hidden = false;
+    this.showStep("start");
   }
-});
 
-$("clock-btn").addEventListener("click", () => {
-  clearError();
-  const label = LABEL[state.nextType];
-  $("photo-hint").textContent = `ถ่ายรูปตนเองเพื่อยืนยันการ${label}`;
-  $("confirm-btn").textContent = "บันทึก" + label;
-  showStep("photo");
-  $("camera-label").focus();
-});
+  // ---------- UC2 / UC3: ถ่ายรูปและบันทึก ----------
 
-// BR1: ต้องมีรูปก่อนจึงกดบันทึกได้
-$("photo").addEventListener("change", (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  if (state.previewUrl) URL.revokeObjectURL(state.previewUrl);
-  state.photo = file;
-  state.previewUrl = URL.createObjectURL(file);
-  $("preview").src = state.previewUrl;
-  $("preview").hidden = false;
-  $("camera-label").textContent = "ถ่ายใหม่";
-  $("confirm-btn").disabled = false;
-});
+  clearPhoto() {
+    if (this.previewUrl) URL.revokeObjectURL(this.previewUrl);
+    this.photo = null;
+    this.previewUrl = null;
+    $("photo").value = "";
+    $("preview").hidden = true;
+    $("preview").removeAttribute("src");
+    $("camera-label").textContent = "ถ่ายรูป";
+    $("confirm-btn").disabled = true;
+  }
 
-// ยกเลิก — ไม่บันทึกข้อมูล (ตาม flowchart)
-$("cancel-btn").addEventListener("click", () => showStep("start"));
+  showStep(step) {
+    // ขั้นถ่ายรูปซ่อนสรุปชั่วโมงไว้ชั่วคราว ให้จอมือถือเห็นแค่สิ่งที่ต้องทำ
+    $("status").hidden = !this.employeeId || step === "photo";
+    $("clock-btn").hidden = step !== "start";
+    $("photo-step").hidden = step !== "photo";
+    $("done").hidden = step !== "done";
+    if (step !== "photo") this.clearPhoto();
+  }
 
-$("confirm-btn").addEventListener("click", async () => {
-  if (!state.photo) return;
-  const form = new FormData();
-  form.append("employee_id", state.employeeId);
-  form.append("type", state.nextType);
-  form.append("photo", state.photo);
+  // ---------- ตัวจัดการเหตุการณ์ ----------
 
-  $("confirm-btn").disabled = true;  // กันกดซ้ำระหว่างรออัปโหลด
-  try {
-    const result = await api("/api/clock", { method: "POST", body: form });
-    $("done-label").textContent = `บันทึก${LABEL[result.type]}แล้ว`;
-    $("done-time").textContent = hhmm(result.recorded_at) + " น.";
-    showStep("done");
-    $("done-btn").focus();
-  } catch (err) {
-    showError(err.message);
+  async onEmployeeChange(e) {
+    this.notice.clear();
+    this.employeeId = e.target.value || null;
+    $("status").hidden = true;
+    $("action").hidden = true;
+    if (!this.employeeId) return;
+    try {
+      await this.loadToday();
+    } catch (err) {
+      this.notice.show(err.message);
+    }
+  }
+
+  onClockClick() {
+    this.notice.clear();
+    const label = LABEL[this.nextType];
+    $("photo-hint").textContent = `ถ่ายรูปตนเองเพื่อยืนยันการ${label}`;
+    $("confirm-btn").textContent = "บันทึก" + label;
+    this.showStep("photo");
+    $("photo").focus();  // โฟกัสไปที่ช่องไฟล์ วงโฟกัสแสดงที่ปุ่ม "ถ่ายรูป" (ดู CSS)
+  }
+
+  // BR1: ต้องมีรูปก่อนจึงกดบันทึกได้
+  onPhotoChange(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (this.previewUrl) URL.revokeObjectURL(this.previewUrl);
+    this.photo = file;
+    this.previewUrl = URL.createObjectURL(file);
+    $("preview").src = this.previewUrl;
+    $("preview").hidden = false;
+    $("camera-label").textContent = "ถ่ายใหม่";
     $("confirm-btn").disabled = false;
   }
-});
 
-$("done-btn").addEventListener("click", async () => {
-  try {
-    await loadToday();
-  } catch (err) {
-    showError(err.message);
+  // ยกเลิก — ไม่บันทึกข้อมูล (ตาม flowchart)
+  onCancel() {
+    this.showStep("start");
+    $("clock-btn").focus();
   }
-});
 
-loadEmployees();
+  async onConfirm() {
+    if (!this.photo) return;
+    const form = new FormData();
+    form.append("employee_id", this.employeeId);
+    form.append("type", this.nextType);
+    form.append("photo", this.photo);
+
+    $("confirm-btn").disabled = true;  // กันกดซ้ำระหว่างรออัปโหลด
+    try {
+      const result = await this.api.request("/api/clock", { method: "POST", body: form });
+      const message = `บันทึก${LABEL[result.type]}แล้ว`;
+      const time = hhmm(result.recorded_at) + " น.";
+      $("done-label").textContent = message;
+      $("done-time").textContent = time;
+      $("announce").textContent = `${message} เวลา ${time}`;
+      // บันทึกสำเร็จแล้ว: อัปเดตสรุปด้านบนทันที ไม่ให้ขัดแย้งกับข้อความสำเร็จ
+      // ถ้าโหลดสรุปไม่ได้ก็ไม่เป็นไร ผลบันทึกถูกยืนยันไปแล้วในแผงนี้
+      await this.refreshStatus().catch(() => {});
+      this.showStep("done");
+      $("done-btn").focus();
+    } catch (err) {
+      this.notice.show(err.message);
+      $("confirm-btn").disabled = false;
+    }
+  }
+
+  onDone() {
+    $("announce").textContent = "";
+    this.showStep("start");
+    $("clock-btn").focus();
+  }
+}
+
+new WorkerPage(new ApiClient(NETWORK_ERROR), new Notice()).init();

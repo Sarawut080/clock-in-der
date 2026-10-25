@@ -1,56 +1,159 @@
 /* ไฟล์ร่วม (ตาม 02-contract.md ข้อ 3) — คุยกันก่อนแก้
-   แนวคิด: บัตรตอกเวลา — พื้นเทาเย็น หมึกน้ำเงินแบบตราประทับ ช่องรายชั่วโมง 8 ช่อง
-   ใช้ฟอนต์ที่มีในเครื่อง ไม่ดึงจากเน็ต เพราะระบบใช้ใน LAN ที่อาจไม่มีอินเทอร์เน็ต */
+
+   แนวคิด: ใบลงเวลา — กระดาษขาวบนพื้นเทาอมเขียวน้ำเงิน เส้นบางแบ่งส่วน ตัวเลขเรียงตรงหลัก
+   สีของ interface (ปุ่ม ลิงก์ โฟกัส) ใช้ accent สีเดียว ส่วนสีสถานะ (ครบ/ไม่ครบ/ข้อมูลยังไม่ครบ)
+   สงวนไว้ให้ความหมายนั้นอย่างเดียว
+
+   ฟอนต์ self-host (static/fonts) เพราะระบบใช้ใน LAN ที่อาจไม่มีอินเทอร์เน็ต
+   ใช้เฉพาะน้ำหนัก 400 กับ 600 ที่โหลดไว้ ไม่ใช้ 500/700 เพื่อไม่ให้เบราว์เซอร์สังเคราะห์น้ำหนักเอง */
+
+@font-face {
+  font-family: "IBM Plex Sans Thai";
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/plex-sans-thai-thai-400.woff2") format("woff2");
+  unicode-range: U+02D7, U+0303, U+0331, U+0E01-0E5B, U+200C-200D, U+25CC;
+}
+@font-face {
+  font-family: "IBM Plex Sans Thai";
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/plex-sans-thai-latin-400.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "IBM Plex Sans Thai";
+  font-weight: 600;
+  font-display: swap;
+  src: url("fonts/plex-sans-thai-thai-600.woff2") format("woff2");
+  unicode-range: U+02D7, U+0303, U+0331, U+0E01-0E5B, U+200C-200D, U+25CC;
+}
+@font-face {
+  font-family: "IBM Plex Sans Thai";
+  font-weight: 600;
+  font-display: swap;
+  src: url("fonts/plex-sans-thai-latin-600.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
 
 :root {
-  --paper: #f2f4f8;
-  --surface: #ffffff;
-  --ink: #1a2747;
-  --ink-soft: #4a5673;
-  --line: #dde1ea;           /* เส้นแบ่งตกแต่ง (ไม่ใช่ขอบของตัวควบคุม) */
-  --control-border: #76819b; /* ขอบช่องกรอก/ช่องรายชั่วโมง ≥ 3:1 บนพื้นขาว (WCAG 1.4.11) */
-  --stamp: #2347c5;
-  --stamp-hover: #1b39a0;
-  --stamp-soft: #e4eaff;
+  /* ---------- primitive: สร้างด้วย culori ใน OKLCH ห้ามใช้ตรงๆ ใน component ---------- */
+  /* neutral: hue 205, chroma 0.006 */
+  --neutral-100: #ecf1f2;
+  --neutral-200: #dde2e3;
+  --neutral-300: #c9cfcf;
+  --neutral-500: #7c8182;
+  --neutral-700: #4f5354;
+  --neutral-900: #1e2223;
+  /* accent: hue 205 */
+  --accent-100: #e9f2f3;
+  --accent-300: #88dee8;
+  --accent-600: #25757e;
+  --accent-700: #225c62;
+  /* danger: hue 27 */
+  --danger-100: #f8edec;
+  --danger-300: #e4c6c2;
+  --danger-600: #bb2a27;
+  --danger-800: #65201c;
+  /* success: hue 155 */
+  --success-100: #ddf8e5;
+  --success-300: #9fdfb5;
+  --success-600: #257b4c;
+  --success-800: #1d442c;
+  /* warning: hue 80 */
+  --warning-100: #f8efe0;
+  --warning-300: #e3caa1;
+  --warning-600: #856220;
+  --warning-800: #48371a;
 
-  --ok: #17694d;
-  --ok-bg: #dff3ea;
-  --short: #a4231c;
-  --short-bg: #fbe3e0;
-  --incomplete: #8a5a00;
-  --incomplete-bg: #fcefcf;
+  /* ---------- semantic: component ใช้เฉพาะชั้นนี้ ---------- */
+  --color-bg-page: var(--neutral-100);
+  --color-bg-surface: #ffffff;
+  --color-bg-sunken: var(--neutral-100);
+  --color-bg-hover: var(--neutral-200);
+  --color-text-primary: var(--neutral-900);
+  --color-text-secondary: var(--neutral-700);
+  --color-text-disabled: var(--neutral-500);
+  --color-text-inverse: #ffffff;
+  --color-text-on-accent: #ffffff;
+  --color-border-subtle: var(--neutral-200);
+  --color-border-default: var(--neutral-500);
+  --color-border-strong: var(--neutral-700);
+  --color-separator: var(--neutral-200);
+  --color-focus-ring: var(--accent-600);
+  --color-accent-subtle: var(--accent-100);
+  --color-accent-border: var(--accent-300);
+  --color-accent-solid: var(--accent-600);
+  --color-accent-solid-hover: var(--accent-700);
+  --color-accent-text: var(--accent-700);
+  --color-danger-subtle: var(--danger-100);
+  --color-danger-border: var(--danger-300);
+  --color-danger-solid: var(--danger-600);
+  --color-danger-text: var(--danger-800);
+  --color-success-subtle: var(--success-100);
+  --color-success-border: var(--success-300);
+  --color-success-solid: var(--success-600);
+  --color-success-text: var(--success-800);
+  --color-warning-subtle: var(--warning-100);
+  --color-warning-border: var(--warning-300);
+  --color-warning-solid: var(--warning-600);
+  --color-warning-text: var(--warning-800);
 
-  /* มุมโค้งตามลำดับชั้น: ตัวควบคุมเล็ก < พื้นผิว */
-  --radius-control: 8px;
-  --radius-surface: 14px;
+  /* ---------- type: ขนาดตามบทบาท ---------- */
+  --font: "IBM Plex Sans Thai", "Leelawadee UI", "Noto Sans Thai", Tahoma, sans-serif;
+  --text-caption: 0.8125rem;
+  --text-body: 1rem;
+  --text-heading: 1.125rem;
+  --text-title: 1.5rem;
+  --text-figure: 3.5rem;
 
-  --font: "IBM Plex Sans Thai", "Leelawadee UI", "Noto Sans Thai", "Sarabun", Tahoma, sans-serif;
+  /* ---------- space / shape ---------- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --radius-control: 6px;
+
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
 }
 
 * { box-sizing: border-box; }
 
-html { color-scheme: light; }
+html {
+  color-scheme: light;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+}
 
 body {
   margin: 0;
   font-family: var(--font);
-  font-size: 1rem;
+  font-size: var(--text-body);
+  font-weight: 400;
   line-height: 1.6;
-  color: var(--ink);
-  background: var(--paper);
-  -webkit-text-size-adjust: 100%;
+  color: var(--color-text-primary);
+  background: var(--color-bg-page);
+  overflow-wrap: break-word;
 }
 
 /* class ที่ตั้ง display ต้องไม่ชนะ attribute hidden */
 [hidden] { display: none !important; }
 
-h1, h2, h3 { line-height: 1.3; margin: 0; }
-h1 { font-size: 1.5rem; font-weight: 700; }
-h2 { font-size: 1.0625rem; font-weight: 600; }
-p { margin: 0; }
+h1, h2, h3, p, ul, figure { margin: 0; }
+h1 { font-size: var(--text-title); font-weight: 600; line-height: 1.2; text-wrap: balance; }
+h2 { font-size: var(--text-heading); font-weight: 600; line-height: 1.3; text-wrap: balance; }
+p { text-wrap: pretty; }
+strong { font-weight: 600; }
+
+.num { font-variant-numeric: tabular-nums; }
+.muted { color: var(--color-text-secondary); }
+.caption { font-size: var(--text-caption); line-height: 1.4; }
 
 :focus-visible {
-  outline: 3px solid var(--stamp);
+  outline: 3px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
 
@@ -62,97 +165,116 @@ p { margin: 0; }
   white-space: nowrap;
 }
 
-.num { font-variant-numeric: tabular-nums; }
-
-/* ---------- พื้นผิว: ใช้แค่กับส่วนที่เป็นเนื้อหาหลัก ไม่ใส่กรอบทุกกล่อง ---------- */
-
-.surface {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-surface);
-}
-
-/* ---------- ปุ่ม / ฟอร์ม ---------- */
+/* ---------- ปุ่ม ---------- */
 
 .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 48px;
+  padding: var(--space-2) var(--space-5);
   font: inherit;
   font-weight: 600;
-  min-height: 48px;           /* เป้าแตะบนมือถือ ≥ 44px */
-  padding: 0.5rem 1.25rem;
+  line-height: 1.3;
+  text-align: center;
+  text-decoration: none;
+  color: var(--color-text-primary);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
   border-radius: var(--radius-control);
-  border: 1.5px solid var(--control-border);
-  background: var(--surface);
-  color: var(--ink);
   cursor: pointer;
 }
-.btn:hover { background: var(--stamp-soft); }
-.btn:disabled { opacity: 0.45; cursor: not-allowed; background: var(--surface); }
-.btn-primary { background: var(--stamp); border-color: var(--stamp); color: #fff; }
-.btn-primary:hover { background: var(--stamp-hover); border-color: var(--stamp-hover); }
-.btn-primary:disabled { background: var(--stamp); }
+.btn-primary {
+  color: var(--color-text-on-accent);
+  background: var(--color-accent-solid);
+  border-color: var(--color-accent-solid);
+}
+.btn:disabled {
+  color: var(--color-text-disabled);
+  background: var(--color-bg-sunken);
+  border-color: var(--color-border-subtle);
+  cursor: not-allowed;
+}
+.btn-primary:disabled { color: var(--color-text-inverse); background: var(--color-border-default); border-color: var(--color-border-default); }
 
-label.field { display: grid; gap: 0.35rem; font-weight: 600; }
+/* hover เฉพาะอุปกรณ์ที่ชี้ได้จริง — บนจอสัมผัส :hover จะค้างหลังแตะ */
+@media (hover: hover) {
+  .btn:not(:disabled):hover { background: var(--color-bg-hover); }
+  .btn-primary:not(:disabled):hover { background: var(--color-accent-solid-hover); border-color: var(--color-accent-solid-hover); }
+}
+
+.btn svg { width: 16px; height: 16px; flex: none; }
+
+/* ---------- ฟอร์ม ---------- */
+
+label.field { display: grid; gap: var(--space-2); font-weight: 600; }
 
 select, input[type="date"] {
-  font: inherit;
-  min-height: 48px;
-  padding: 0.4rem 0.75rem;
-  border: 1.5px solid var(--control-border);
-  border-radius: var(--radius-control);
-  background: var(--surface);
-  color: var(--ink);
   width: 100%;
+  min-height: 48px;
+  padding: var(--space-2) var(--space-3);
+  font: inherit;           /* 16px ขึ้นไป กัน iOS ซูมเองตอนแตะช่อง */
+  font-weight: 400;
+  color: var(--color-text-primary);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-control);
 }
-select:focus-visible, input[type="date"]:focus-visible { border-color: var(--stamp); }
 
 /* ---------- badge สถานะ: ไอคอน + ข้อความ ไม่สื่อด้วยสีอย่างเดียว ---------- */
+
+/* เขียว = ครบ, ส้ม = ไม่ครบ, เหลือง = ข้อมูลยังไม่ครบ — ส้ม/เหลืองใช้ตัวอักษรเข้ม (ขาวบนสีสว่างอ่านไม่ชัด) */
 
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.1rem 0.65rem;
-  border-radius: 999px;
-  font-weight: 600;
-  font-size: 0.875rem;
+  justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+  width: 10rem;  /* กว้างเท่ากันทุกสถานะ รองรับข้อความยาวสุด "ข้อมูลยังไม่ครบ" + ตัวเลขสรุป */
+  padding: 3px 10px;
+  font-size: var(--text-caption);
+  font-weight: 700;
+  line-height: 1.5;
   white-space: nowrap;
+  border-radius: var(--radius-control);
 }
-.badge-ok { color: var(--ok); background: var(--ok-bg); }
-.badge-short { color: var(--short); background: var(--short-bg); }
-.badge-incomplete { color: var(--incomplete); background: var(--incomplete-bg); }
+.badge svg { width: 16px; height: 16px; flex: none; }
+.badge-ok { color: var(--color-text-on-accent); background: var(--color-success-solid); }
+.badge-short { color: var(--color-text-primary); background: #f28a1e; }
+.badge-incomplete { color: var(--color-text-primary); background: #f5c828; }
 
-/* ---------- ช่องรายชั่วโมงแบบบัตรตอก: 8 ช่อง = 8 ชม. ---------- */
-
-.punch {
-  display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  gap: 4px;
-}
-.punch-cell {
-  height: 24px;
-  border-radius: 3px;
-  background: var(--paper);
-  border: 1px solid var(--control-border);
-  overflow: hidden;
-  position: relative;
-}
-.punch-cell > i {
-  position: absolute;
-  inset: 0 auto 0 0;
-  background: var(--stamp);
-}
-.punch.is-full .punch-cell > i { background: var(--ok); }
-
-/* ---------- ข้อความแจ้งผล ---------- */
+/* ---------- แจ้งข้อผิดพลาด: region ต้องอยู่ใน DOM ก่อนมีข้อความ เพื่อให้ screen reader ประกาศ ---------- */
 
 .notice {
-  padding: 0.75rem 1rem;
+  padding: var(--space-3) var(--space-4);
+  color: var(--color-danger-text);
+  background: var(--color-danger-subtle);
+  border-inline-start: 4px solid var(--color-danger-solid);
   border-radius: var(--radius-control);
-  border-left: 4px solid;
-  font-weight: 500;
 }
-.notice-error { color: var(--short); background: var(--short-bg); }
+.notice:empty { display: none; }
 
-@media (prefers-reduced-motion: reduce) {
-  * { animation: none !important; transition: none !important; }
+/* ---------- ภาพ: เส้นขอบดำ 10% ชัดบนภาพสว่างโดยไม่ติดสีเข้าไปในขอบภาพ ---------- */
+
+.photo {
+  display: block;
+  width: 100%;
+  object-fit: cover;
+  background: var(--color-bg-sunken);
+  border-radius: var(--radius-control);
+  outline: 1px solid rgb(0 0 0 / 0.1);
+  outline-offset: -1px;
+}
+
+/* ---------- การเคลื่อนไหว: เปิดเฉพาะผู้ที่ไม่ได้ปิดแอนิเมชันในระบบ ---------- */
+
+@media (prefers-reduced-motion: no-preference) {
+  .btn {
+    transition-property: scale, background-color, border-color;
+    transition-duration: 150ms;
+    transition-timing-function: ease-out;
+  }
+  .btn:not(:disabled):active { scale: 0.96; }
 }
