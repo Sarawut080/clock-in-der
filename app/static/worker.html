@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>บันทึกเวลาเข้า-ออกงาน</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    .page { max-width: 28rem; margin: 0 auto; padding: 1.25rem 1rem 2.5rem; display: grid; gap: 1.25rem; }
+    .date { color: var(--ink-soft); margin-top: 0.15rem; }
+
+    /* บัตรตอกเวลา — องค์ประกอบเดียวของหน้าที่มีพื้นผิว */
+    .timecard { padding: 1.25rem; display: grid; gap: 1rem; }
+    .hours { font-size: 2.5rem; font-weight: 700; line-height: 1.15; }
+    .hours small { font-size: 1rem; font-weight: 500; color: var(--ink-soft); margin: 0 0.75rem 0 0.25rem; }
+    .hours.is-text { font-size: 1.5rem; }
+    .note { color: var(--ink-soft); }
+    .scale { display: flex; justify-content: space-between; font-size: 0.8125rem; color: var(--ink-soft); margin-top: 0.3rem; }
+
+    /* รายการเข้า-ออกเหมือนบรรทัดบนบัตรตอก: เวลาเป็นหมึกประทับ */
+    .stamps { list-style: none; margin: 0; padding: 0.75rem 0 0; border-top: 1px dashed var(--control-border); display: grid; gap: 0.35rem; }
+    .stamps li { display: flex; justify-content: space-between; align-items: baseline; }
+    .stamps .t { font-weight: 700; color: var(--stamp); font-size: 1.0625rem; }
+    .stamps .empty { color: var(--ink-soft); }
+
+    .clock-btn { width: 100%; min-height: 64px; font-size: 1.25rem; }
+
+    .photo-step { padding: 1rem; display: grid; gap: 0.75rem; }
+    .preview { width: 100%; max-height: 22rem; object-fit: cover; border-radius: var(--radius-control); background: var(--paper); }
+    .camera-btn { display: flex; align-items: center; justify-content: center; }
+    #photo:focus-visible + .camera-btn { outline: 3px solid var(--stamp); outline-offset: 2px; }
+    .pair { display: grid; grid-template-columns: 1fr 1.4fr; gap: 0.75rem; }
+
+    .done { padding: 1.5rem 1rem; display: grid; gap: 0.25rem; justify-items: center; text-align: center; }
+    .done .time { font-size: 2.5rem; font-weight: 700; color: var(--stamp); line-height: 1.2; }
+    .done .btn { margin-top: 0.75rem; min-width: 8rem; }
+
+    .to-dashboard { display: flex; align-items: center; justify-content: center; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <h1>บันทึกเวลาเข้า-ออกงาน</h1>
+      <p class="date" id="today-label"></p>
+    </header>
+
+    <!-- UC1 -->
+    <label class="field">ชื่อของคุณ
+      <select id="employee">
+        <option value="">เลือกชื่อ</option>
+      </select>
+    </label>
+
+    <div id="notice" class="notice notice-error" role="alert" hidden></div>
+
+    <!-- UC4 -->
+    <section class="surface timecard" id="status" aria-labelledby="status-h" hidden>
+      <h2 id="status-h">ชั่วโมงทำงานสะสมวันนี้</h2>
+      <div>
+        <p class="hours num" id="hours"></p>
+        <p class="note" id="hours-note"></p>
+      </div>
+      <div>
+        <div class="punch" id="punch" role="img"></div>
+        <div class="scale" aria-hidden="true"><span>0 ชม.</span><span>8 ชม.</span></div>
+      </div>
+      <ul class="stamps num" id="stamps" aria-label="รายการเข้า-ออกงานวันนี้"></ul>
+    </section>
+
+    <!-- UC2 / UC3 -->
+    <section id="action" aria-label="บันทึกเวลา" hidden>
+      <button class="btn btn-primary clock-btn" id="clock-btn" type="button"></button>
+
+      <div class="surface photo-step" id="photo-step" hidden>
+        <p id="photo-hint"></p>
+        <img class="preview" id="preview" alt="รูปที่เพิ่งถ่าย" hidden>
+        <input class="visually-hidden" id="photo" type="file" accept="image/*" capture="user">
+        <label class="btn camera-btn" id="camera-label" for="photo">ถ่ายรูป</label>
+        <div class="pair">
+          <button class="btn" id="cancel-btn" type="button">ยกเลิก</button>
+          <button class="btn btn-primary" id="confirm-btn" type="button" disabled></button>
+        </div>
+      </div>
+
+      <div class="surface done" id="done" hidden role="status">
+        <p id="done-label"></p>
+        <p class="time num" id="done-time"></p>
+        <p class="note">เวลาตามนาฬิกาของระบบ</p>
+        <button class="btn" id="done-btn" type="button">ตกลง</button>
+      </div>
+    </section>
+
+    <a class="btn to-dashboard" href="/boss">ไปหน้าแดชบอร์ด</a>
+  </main>
+
+  <script src="/static/worker.js"></script>
+</body>
+</html>

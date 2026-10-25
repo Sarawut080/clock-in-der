@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+
+# รูปพนักงานเป็นข้อมูลส่วนบุคคล ห้ามขึ้น git (ตาม 03-work-split.md ข้อ 4)
+uploads/

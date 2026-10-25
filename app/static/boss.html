@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>แดชบอร์ด — บันทึกเวลาเข้า-ออกงาน</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    .page { max-width: 64rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; display: grid; gap: 1.5rem; }
+    .top { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+    .top a { color: var(--stamp); display: inline-flex; align-items: center; min-height: 44px; }
+
+    .filters { padding: 1rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: 0.75rem; align-items: end; }
+
+    .result-head { display: grid; gap: 0.35rem; }
+    .result-head h2 { font-size: 1.25rem; }
+    .counts { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; }
+
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 38rem; }
+    th, td { padding: 0.65rem 1rem; text-align: left; vertical-align: middle; }
+    thead th { font-weight: 600; font-size: 0.875rem; color: var(--ink-soft); border-bottom: 1px solid var(--line); }
+    tbody td { border-bottom: 1px solid var(--line); }
+    tbody:last-of-type tr:last-child td { border-bottom: 0; }
+    .group th { background: var(--paper); font-weight: 600; font-size: 0.9375rem; border-bottom: 1px solid var(--line); }
+
+    .name-btn { font: inherit; font-weight: 600; background: none; border: 0; padding: 0; min-height: 44px;
+      color: var(--stamp); cursor: pointer; text-align: left; display: inline-flex; align-items: center; gap: 0.4rem; }
+    .name-btn::after { content: ""; width: 0.45rem; height: 0.45rem; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+      transform: rotate(45deg) translateY(-2px); }
+    .name-btn[aria-expanded="true"]::after { transform: rotate(-135deg) translateY(-2px); }
+    .name-btn:hover { text-decoration: underline; text-underline-offset: 3px; }
+    .muted { color: var(--ink-soft); }
+
+    .detail > td { background: #fafbfd; }
+    .photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: 0.75rem; padding: 0.25rem 0; }
+    .shot { margin: 0; display: grid; gap: 0.3rem; }
+    .shot img, .shot .missing { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; border-radius: var(--radius-control); background: var(--paper); }
+    .shot .missing { display: grid; place-items: center; text-align: center; color: var(--ink-soft); font-size: 0.875rem;
+      padding: 0.75rem; border: 1px dashed var(--control-border); }
+    .shot figcaption { font-size: 0.875rem; }
+
+    .empty { padding: 3rem 1rem; text-align: center; display: grid; gap: 0.25rem; }
+    .empty strong { font-size: 1.0625rem; }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="top">
+      <h1>แดชบอร์ด</h1>
+      <a href="/">ไปหน้าบันทึกเวลา</a>
+    </div>
+
+    <!-- UC6 -->
+    <form class="surface filters" id="filters" aria-label="กรองข้อมูล">
+      <label class="field">ตั้งแต่วันที่
+        <input type="date" id="from" required>
+      </label>
+      <label class="field">ถึงวันที่
+        <input type="date" id="to" required>
+      </label>
+      <label class="field">พนักงาน
+        <select id="employee">
+          <option value="">ทุกคน</option>
+        </select>
+      </label>
+      <button class="btn btn-primary" type="submit">แสดงข้อมูล</button>
+    </form>
+
+    <div id="notice" class="notice notice-error" role="alert" hidden></div>
+
+    <!-- UC5 -->
+    <section class="result-head" aria-live="polite">
+      <h2 id="result-title"></h2>
+      <p class="counts" id="counts"></p>
+    </section>
+    <div class="surface table-wrap" id="table-wrap"></div>
+  </main>
+
+  <script src="/static/boss.js"></script>
+</body>
+</html>
