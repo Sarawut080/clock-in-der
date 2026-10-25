@@ -3,72 +3,37 @@ import datetime as dt
 from typing import Optional
 
 from fastapi import APIRouter, Query
-from fastapi.responses import JSONResponse
 
-from .. import mock_store as store
+from ..errors import ApiError
 from ..schemas import RangeRow, ReportRow
-
-router = APIRouter(prefix="/api/report")
-
-
-def _row(emp: dict, day: dt.date) -> Optional[dict]:
-    events = store.events_of(emp["id"], day)
-    if not events:
-        return None
-    s = store.summarize(events)
-    return {
-        "employee_id": emp["id"],
-        "name": emp["name"],
-        "first_in": s["first_in"],
-        "last_out": s["last_out"],
-        "worked_minutes": s["worked_minutes"],
-        "status": s["status"],
-        "events": [store.event_out(e) for e in events],
-    }
+from ..services import ReportService
 
 
-def _bad_request(message: str) -> JSONResponse:
-    # รหัส BAD_REQUEST ยังไม่มีในสัญญา — ต้องเพิ่มใน 02-contract.md ก่อนใช้จริง
-    return JSONResponse(status_code=400, content={"ok": False, "error": "BAD_REQUEST", "message": message})
+class ReportRouter:
+    def __init__(self, service: ReportService):
+        self._service = service
+        self.router = APIRouter(prefix="/api/report")
+        self.router.add_api_route("/daily", self.daily, methods=["GET"], response_model=list[ReportRow])
+        self.router.add_api_route("/range", self.range_, methods=["GET"], response_model=list[RangeRow])
 
+    @staticmethod
+    def _parse_date(value: str) -> dt.date:
+        try:
+            return dt.date.fromisoformat(value)
+        except ValueError:
+            # รหัส BAD_REQUEST ยังไม่มีในสัญญา — ต้องเพิ่มใน 02-contract.md ก่อนใช้จริง
+            raise ApiError("BAD_REQUEST", "รูปแบบวันที่ไม่ถูกต้อง ใช้ YYYY-MM-DD") from None
 
-def _parse_date(value: str) -> Optional[dt.date]:
-    try:
-        return dt.date.fromisoformat(value)
-    except ValueError:
-        return None
+    def daily(self, date: str):
+        return self._service.daily(self._parse_date(date))
 
-
-@router.get("/daily", response_model=list[ReportRow])
-def daily(date: str):
-    day = _parse_date(date)
-    if day is None:
-        return _bad_request("รูปแบบวันที่ไม่ถูกต้อง ใช้ YYYY-MM-DD")
-    # รวมพนักงานที่ปิดใช้งานแล้วด้วย — ประวัติของคนที่ลาออกยังต้องตรวจย้อนหลังได้
-    rows = (_row(e, day) for e in store.EMPLOYEES)
-    return [r for r in rows if r]
-
-
-@router.get("/range", response_model=list[RangeRow])
-def range_(
-    from_: str = Query(alias="from"),  # contract ใช้ชื่อ query "from" ซึ่งเป็น keyword ของ Python
-    to: str = Query(),
-    employee_id: Optional[int] = None,  # ไม่ใส่ = ทุกคน
-):
-    start, end = _parse_date(from_), _parse_date(to)
-    if start is None or end is None:
-        return _bad_request("รูปแบบวันที่ไม่ถูกต้อง ใช้ YYYY-MM-DD")
-    if end < start:
-        return _bad_request("วันที่เริ่มต้องไม่หลังวันที่สิ้นสุด")
-
-    out = []
-    day = start
-    while day <= end:
-        for emp in store.EMPLOYEES:
-            if employee_id is not None and emp["id"] != employee_id:
-                continue
-            row = _row(emp, day)
-            if row:
-                out.append({"date": day.isoformat(), **row})
-        day += dt.timedelta(days=1)
-    return out
+    def range_(
+        self,
+        from_: str = Query(alias="from"),  # contract ใช้ชื่อ query "from" ซึ่งเป็น keyword ของ Python
+        to: str = Query(),
+        employee_id: Optional[int] = None,  # ไม่ใส่ = ทุกคน
+    ):
+        start, end = self._parse_date(from_), self._parse_date(to)
+        if end < start:
+            raise ApiError("BAD_REQUEST", "วันที่เริ่มต้องไม่หลังวันที่สิ้นสุด")
+        return self._service.range(start, end, employee_id)
