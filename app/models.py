@@ -10,6 +10,7 @@ class Employee:
     name: str
     role: str
     is_active: bool = True
+    pin_hash: Optional[str] = None  # ไม่ส่งออกทาง API
 
     def to_api(self) -> dict:
         return {"id": self.id, "name": self.name}

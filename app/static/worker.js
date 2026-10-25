@@ -18,36 +18,29 @@ class WorkerPage {
     this.previewUrl = null;
   }
 
-  init() {
+  async init() {
     $("today-label").textContent = new Date().toLocaleDateString("th-TH", {
       weekday: "long", day: "numeric", month: "long", year: "numeric",
     });
     this.bindEvents();
-    this.loadEmployees();
+    try {
+      // ตัวตนมาจากการเข้าสู่ระบบ ไม่ต้องเลือกชื่อ (UC1) — ถ้ายังไม่เข้าสู่ระบบ ApiClient พาไป /login เอง
+      const me = await this.api.request("/api/auth/me");
+      this.employeeId = me.employee_id;
+      $("employee-name").textContent = me.name;
+      await this.loadToday();
+    } catch (err) {
+      this.notice.show(err.message);
+    }
   }
 
   bindEvents() {
-    $("employee").addEventListener("change", (e) => this.onEmployeeChange(e));
+    $("logout-btn").addEventListener("click", () => this.onLogout());
     $("clock-btn").addEventListener("click", () => this.onClockClick());
     $("photo").addEventListener("change", (e) => this.onPhotoChange(e));
     $("cancel-btn").addEventListener("click", () => this.onCancel());
     $("confirm-btn").addEventListener("click", () => this.onConfirm());
     $("done-btn").addEventListener("click", () => this.onDone());
-  }
-
-  // ---------- UC1: รายชื่อ ----------
-
-  async loadEmployees() {
-    try {
-      for (const e of await this.api.request("/api/employees")) {
-        const opt = document.createElement("option");
-        opt.value = e.id;
-        opt.textContent = e.name;
-        $("employee").appendChild(opt);
-      }
-    } catch (err) {
-      this.notice.show(err.message);
-    }
   }
 
   // ---------- UC4: ชั่วโมงสะสมวันนี้ ----------
@@ -107,7 +100,7 @@ class WorkerPage {
 
   // โหลดและแสดงสถานะวันนี้ โดยไม่แตะขั้นตอนที่หน้าจออยู่
   async refreshStatus() {
-    const data = await this.api.request("/api/me/today?employee_id=" + this.employeeId);
+    const data = await this.api.request("/api/me/today");
     this.renderHours(data);
     this.renderLog(data.events);
 
@@ -146,17 +139,14 @@ class WorkerPage {
 
   // ---------- ตัวจัดการเหตุการณ์ ----------
 
-  async onEmployeeChange(e) {
-    this.notice.clear();
-    this.employeeId = e.target.value || null;
-    $("status").hidden = true;
-    $("action").hidden = true;
-    if (!this.employeeId) return;
+  async onLogout() {
     try {
-      await this.loadToday();
+      await this.api.request("/api/auth/logout", { method: "POST" });
     } catch (err) {
       this.notice.show(err.message);
+      return;
     }
+    location.replace("/login");
   }
 
   onClockClick() {
@@ -190,7 +180,6 @@ class WorkerPage {
   async onConfirm() {
     if (!this.photo) return;
     const form = new FormData();
-    form.append("employee_id", this.employeeId);
     form.append("type", this.nextType);
     form.append("photo", this.photo);
 

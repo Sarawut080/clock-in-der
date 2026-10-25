@@ -6,23 +6,6 @@
   <title>บันทึกเวลาเข้า-ออกงาน</title>
   <link rel="stylesheet" href="/static/style.css">
   <style>
-    /* หน้านี้ใช้บนมือถือเป็นหลัก: แผ่นกระดาษเดียวเต็มจอ บนจอกว้างเป็นแถบกลางหน้า */
-    .sheet {
-      display: grid;
-      align-content: start;
-      gap: var(--space-5);
-      max-width: 30rem;
-      min-height: 100dvh;
-      margin: 0 auto;
-      padding: var(--space-5) var(--space-5) var(--space-6);
-      background: var(--color-bg-surface);
-    }
-    @media (min-width: 30.0625rem) {
-      .sheet { border-inline: 1px solid var(--color-separator); }
-    }
-
-    .masthead { display: grid; gap: var(--space-1); }
-
     /* ส่วนชั่วโมงสะสม: แบ่งด้วยเส้นบางและช่องไฟ ไม่ใช้กรอบ */
     .day { display: grid; gap: var(--space-4); padding-top: var(--space-5); border-top: 1px solid var(--color-separator); }
 
@@ -59,24 +42,15 @@
     .done { display: grid; gap: var(--space-2); justify-items: center; padding: var(--space-5) 0; text-align: center; }
     .done .figure { color: var(--color-accent-text); }
     .done .btn { margin-top: var(--space-4); width: 100%; }
-
-    .foot { padding-top: var(--space-5); border-top: 1px solid var(--color-separator); }
-    .foot .btn { width: 100%; }
   </style>
 </head>
 <body>
   <main class="sheet">
     <header class="masthead">
       <h1>บันทึกเวลาเข้า-ออกงาน</h1>
+      <p><strong id="employee-name"></strong></p>
       <p class="muted" id="today-label"></p>
     </header>
-
-    <!-- UC1 -->
-    <label class="field">ชื่อของคุณ
-      <select id="employee">
-        <option value="">เลือกชื่อ</option>
-      </select>
-    </label>
 
     <!-- region ต้องมีใน DOM ตั้งแต่แรก แล้วค่อยใส่ข้อความ -->
     <div class="notice" id="notice" role="alert"></div>
@@ -124,6 +98,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
           ไปหน้าแดชบอร์ด
         </a>
+        <button class="btn" id="logout-btn" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+          ออกจากระบบ
+        </button>
       </nav>
     </footer>
 

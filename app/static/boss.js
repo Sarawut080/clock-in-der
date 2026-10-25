@@ -82,7 +82,16 @@ class ReportTable {
     ["ออกงานครั้งสุดท้าย", "col-num"],
     ["ชั่วโมงทำงานสะสม", "col-num"],
     ["สถานะ", ""],
+    ["รูปถ่าย", ""],
   ];
+
+  // เรื่องที่ต้องตามขึ้นก่อน: ข้อมูลยังไม่ครบ → ไม่ครบ 8 ชม. → ครบ แล้วเรียงตามชื่อ
+  static RANK = { INCOMPLETE: 0, SHORT: 1, OK: 2 };
+
+  static sorted(rows) {
+    return [...rows].sort((a, b) =>
+      ReportTable.RANK[a.status] - ReportTable.RANK[b.status] || a.name.localeCompare(b.name, "th"));
+  }
 
   constructor(container) {
     this.container = container;
@@ -102,24 +111,29 @@ class ReportTable {
     return el("figure", { class: "shot" }, img, el("figcaption", { class: "caption" }, `${label} `, el("strong", { class: "num", text: time })));
   }
 
+  // ค่าที่ยังไม่มี: ขีดให้ตาเห็น + ข้อความเต็มให้ screen reader (ขีดเปล่าๆ อ่านออกเสียงไม่รู้เรื่อง)
+  static empty(spoken) {
+    return el("span", {}, el("span", { "aria-hidden": "true", text: "—" }), el("span", { class: "visually-hidden", text: spoken }));
+  }
+
   personRows(r, colCount) {
     const detailId = "detail-" + this.rowSeq++;
-    const btn = el("button", { class: "name-btn", type: "button", "aria-expanded": "false", "aria-controls": detailId, text: r.name });
-    // short = ป้ายสั้นที่แสดงหน้าค่าเฉพาะบนจอแคบ (บนจอกว้างใช้หัวคอลัมน์แทน)
-    const cell = (cls, short, content) => {
-      const td = el("td", { class: cls, role: "cell", ...(short ? { "data-short": short } : {}) });
+    const photoLabel = `ดูรูป ${r.events.length} รูป`;
+    const btn = el("button", { class: "photos-btn", type: "button", "aria-expanded": "false", "aria-controls": detailId, "aria-label": `${photoLabel} ของ${r.name}`, text: photoLabel });
+    // label = ป้ายกำกับเหนือค่า แสดงเฉพาะจอแคบ (บนจอกว้างใช้หัวคอลัมน์แทน)
+    const cell = (cls, label, content) => {
+      const td = el("td", { class: cls, role: "cell", ...(label ? { "data-label": label } : {}) });
       if (typeof content === "string") td.textContent = content; else td.append(content);
       return td;
     };
     const incomplete = r.status === "INCOMPLETE";
     const tr = el("tr", { class: "person", role: "row" },
-      cell("c-name", null, btn),
-      cell("c-in col-num num", "เข้า", r.first_in ? r.first_in + " น." : "-"),
-      r.last_out
-        ? cell("c-out col-num num", "ออก", r.last_out + " น.")
-        : cell("c-out col-num muted", null, "ยังไม่ออกงาน"),
-      cell("c-hours col-num num" + (incomplete ? " is-empty" : ""), null, incomplete ? "-" : DateText.hours(r.worked_minutes)),
+      cell("c-name", null, el("strong", { text: r.name })),
+      cell("c-in col-num num", "เข้างาน", r.first_in ? r.first_in + " น." : ReportTable.empty("ไม่มีเวลาเข้างาน")),
+      cell("c-out col-num num", "ออกงาน", r.last_out ? r.last_out + " น." : ReportTable.empty("ยังไม่ออกงาน")),
+      cell("c-hours col-num num", "รวม", incomplete ? ReportTable.empty("ยังรวมชั่วโมงไม่ได้ เพราะยังไม่ออกงาน") : DateText.hours(r.worked_minutes)),
       cell("c-status", null, StatusBadge.create(r.status)),
+      cell("c-photos", null, btn),
     );
     const detail = el("tr", { class: "detail", id: detailId, role: "row", hidden: "" },
       el("td", { role: "cell", colspan: colCount }, el("div", { class: "photos" }, ...r.events.map((ev) => this.photoFigure(ev, r.name)))));
@@ -142,12 +156,12 @@ class ReportTable {
 
     // ตารางแสดงเป็นบล็อกบนจอแคบ ใส่ role ชัดเจนเพื่อให้ screen reader ยังอ่านเป็นตารางเหมือนเดิม
     const table = el("table", { role: "table" },
-      el("caption", { class: "visually-hidden", text: "สรุปเวลาเข้า-ออกงาน กดชื่อเพื่อดูรูปประกอบ" }),
+      el("caption", { class: "visually-hidden", text: "สรุปเวลาเข้า-ออกงาน กดปุ่มดูรูปเพื่อดูรูปประกอบ" }),
       el("thead", { role: "rowgroup" }, el("tr", { role: "row" },
         ...cols.map(([text, cls]) => el("th", { scope: "col", role: "columnheader", class: cls, text })))));
 
     if (!grouped) {
-      table.appendChild(el("tbody", { role: "rowgroup" }, ...rows.flatMap((r) => this.personRows(r, cols.length))));
+      table.appendChild(el("tbody", { role: "rowgroup" }, ...ReportTable.sorted(rows).flatMap((r) => this.personRows(r, cols.length))));
     } else {
       // ช่วงวันที่: แยกกลุ่มตามวัน วันล่าสุดอยู่บน
       const byDate = new Map();
@@ -158,7 +172,7 @@ class ReportTable {
       for (const date of [...byDate.keys()].sort().reverse()) {
         const head = el("tr", { class: "group", role: "row" },
           el("th", { scope: "rowgroup", role: "rowheader", colspan: cols.length, text: DateText.thai(date, DateText.LONG) }));
-        table.appendChild(el("tbody", { role: "rowgroup" }, head, ...byDate.get(date).flatMap((r) => this.personRows(r, cols.length))));
+        table.appendChild(el("tbody", { role: "rowgroup" }, head, ...ReportTable.sorted(byDate.get(date)).flatMap((r) => this.personRows(r, cols.length))));
       }
     }
     this.container.replaceChildren(table);
@@ -190,10 +204,21 @@ class BossPage {
     // เลือกช่วงลัด = โหลดทันที, เลือก "กำหนดเอง" = แสดงช่องวันที่ แล้วรอกดปุ่ม
     $("period").addEventListener("change", () => this.onPeriodChange());
     $("employee").addEventListener("change", () => this.load());
+    $("logout-btn").addEventListener("click", () => this.onLogout());
     $("filters").addEventListener("submit", (e) => {
       e.preventDefault();
       this.load();
     });
+  }
+
+  async onLogout() {
+    try {
+      await this.api.request("/api/auth/logout", { method: "POST" });
+    } catch (err) {
+      this.notice.show(err.message);
+      return;
+    }
+    location.replace("/login");
   }
 
   onPeriodChange() {
@@ -221,19 +246,47 @@ class BossPage {
 
   renderHead(rows, filter) {
     const today = DateText.localISODate(new Date());
-    let title = filter.from === filter.to
-      ? (filter.from === today ? "วันนี้ " : "") + DateText.thai(filter.from, DateText.LONG)
-      : `${DateText.thai(filter.from)} ถึง ${DateText.thai(filter.to)}`;
-    if (filter.employeeName) title += ` ของ${filter.employeeName}`;
-    $("result-title").textContent = title;
+    const single = filter.from === filter.to;
+    const title = el("h2", { id: "result-title" });
+    if (single && filter.from === today) title.append(el("span", { class: "eyebrow", text: "วันนี้" }));
+    title.append(single
+      ? DateText.thai(filter.from, DateText.LONG)
+      : `${DateText.thai(filter.from)} ถึง ${DateText.thai(filter.to)}`);
+    if (filter.employeeName) title.append(el("span", { class: "eyebrow", text: `ของ ${filter.employeeName}` }));
+    $("result-title").replaceWith(title);
 
+    // KPI row: ตัวเลขเป็นตัวหลัก ชื่อสถานะอยู่ใต้ตัวเลข (ไม่ใช้ป้ายสีทึบ เพื่อไม่ให้สับสนกับป้ายสถานะรายคน)
     const counts = { OK: 0, SHORT: 0, INCOMPLETE: 0 };
     for (const r of rows) counts[r.status]++;
-    $("counts").replaceChildren(...Object.keys(StatusBadge.STATUS).map((key) => el("li", {}, StatusBadge.create(key, ` ${counts[key]}`))));
+    $("counts").replaceChildren(...Object.keys(StatusBadge.STATUS).map((key) => {
+      const s = StatusBadge.STATUS[key];
+      return el("div", { class: `kpi kpi-${key.toLowerCase()}${counts[key] === 0 ? " is-zero" : ""}` },
+        el("dt", {}, StatusBadge.icon(key), s.text),
+        el("dd", { class: "num" }, String(counts[key]), el("small", { text: " คน" })));
+    }));
+  }
+
+  // ตรวจช่วงวันที่ที่กำหนดเองก่อนส่ง (เซิร์ฟเวอร์ตรวจซ้ำ) — คืนจริงถ้าส่งได้
+  validateRange() {
+    const from = $("from");
+    const to = $("to");
+    const problems = [];
+    if (!from.value) problems.push([from, "เลือกวันที่เริ่มต้น"]);
+    if (!to.value) problems.push([to, "เลือกวันที่สิ้นสุด"]);
+    if (problems.length === 0) {
+      const days = (new Date(to.value) - new Date(from.value)) / 86400000;
+      if (days < 0) problems.push([to, "วันที่สิ้นสุดต้องไม่ก่อนวันที่เริ่มต้น"]);
+      else if (days >= 366) problems.push([to, "เลือกช่วงวันที่ไม่เกิน 1 ปี"]);
+    }
+    for (const input of [from, to]) new FieldError(input).clear();
+    for (const [input, message] of problems) new FieldError(input).show(message);
+    if (problems.length > 0) problems[0][0].focus();
+    return problems.length === 0;
   }
 
   async load() {
     this.notice.clear();
+    if (!this.validateRange()) return;
     const select = $("employee");
     const filter = {
       from: $("from").value,

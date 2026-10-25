@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>เข้าสู่ระบบ</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main class="sheet">
+    <header class="masthead">
+      <h1>เข้าสู่ระบบ</h1>
+      <p class="muted">เลือกชื่อและใส่ PIN ของคุณ</p>
+    </header>
+
+    <!-- region ต้องมีใน DOM ตั้งแต่แรก แล้วค่อยใส่ข้อความ -->
+    <div class="notice" id="notice" role="alert"></div>
+
+    <form class="form" id="form" novalidate>
+      <div class="field-group">
+        <label for="employee">ชื่อของคุณ</label>
+        <select id="employee" name="username" autocomplete="username" aria-describedby="employee-error">
+          <option value="">เลือกชื่อ</option>
+        </select>
+        <p class="field-error" id="employee-error"></p>
+      </div>
+
+      <div class="field-group">
+        <label for="pin">PIN 6 หลัก</label>
+        <input class="pin-input" id="pin" name="pin" type="password" inputmode="numeric" autocomplete="current-password" maxlength="6" aria-describedby="pin-error">
+        <p class="field-error" id="pin-error"></p>
+      </div>
+
+      <button class="btn btn-primary" id="submit" type="submit">เข้าสู่ระบบ</button>
+    </form>
+
+    <footer class="foot">
+      <nav aria-label="สลับหน้า">
+        <a class="btn" href="/register">ยังไม่มีบัญชี? ลงทะเบียน</a>
+      </nav>
+    </footer>
+  </main>
+
+  <script src="/static/common.js"></script>
+  <script src="/static/login.js"></script>
+</body>
+</html>

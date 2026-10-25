@@ -5,8 +5,9 @@ from pathlib import Path
 from typing import Optional
 
 from .errors import ApiError
-from .mock_store import AttendanceRepository, EmployeeRepository, ServerClock
+from .mock_store import ServerClock
 from .models import AttendanceEvent, DaySummary, Employee
+from .repositories import AttendanceRepository, EmployeeRepository
 
 FULL_DAY_MINUTES = 480  # เกณฑ์ครบ 8 ชม.
 
@@ -15,13 +16,14 @@ class AttendanceSummarizer:
     @staticmethod
     def summarize(events: list[AttendanceEvent]) -> DaySummary:
         """จับคู่ in→out ตามลำดับเวลา แล้วรวมนาที (D2, D4)"""
+        events = sorted(events, key=lambda e: e.recorded_at)  # ไม่เชื่อว่าผู้เรียกเรียงมาให้แล้ว
         worked = 0
         open_in = None
         for ev in events:
             if ev.is_in:
                 open_in = ev.recorded_at
             elif open_in is not None:
-                worked += int((ev.recorded_at - open_in).total_seconds() // 60)
+                worked += max(0, int((ev.recorded_at - open_in).total_seconds() // 60))
                 open_in = None
         ins = [e.recorded_at for e in events if e.is_in]
         outs = [e.recorded_at for e in events if not e.is_in]
@@ -42,18 +44,38 @@ class AttendanceSummarizer:
 
 
 class PhotoStorage:
-    EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".heic"}
+    MAX_BYTES = 10 * 1024 * 1024  # NFR4: กันรูปใหญ่ผิดปกติกินดิสก์/แรม (มือถือทั่วไป 2–6 MB)
+    HEIC_BRANDS = {b"heic", b"heix", b"heim", b"heis", b"hevc", b"mif1", b"msf1"}
 
     def __init__(self, upload_dir: Path):
         self._upload_dir = upload_dir
 
-    def save(self, employee_id: int, original_name: str, content: bytes) -> str:
-        ext = Path(original_name or "").suffix.lower()
-        if ext not in self.EXTENSIONS:
-            ext = ".jpg"  # ไม่รับนามสกุลอื่น กันไฟล์ที่เบราว์เซอร์จะตีความเป็น HTML/SVG
+    @classmethod
+    def detect_extension(cls, content: bytes) -> Optional[str]:
+        """ดูชนิดไฟล์จากไบต์แรก ไม่เชื่อชื่อไฟล์/Content-Type ที่ผู้ใช้ส่งมา — ไม่รู้จัก = None"""
+        if content.startswith(b"\xff\xd8\xff"):
+            return ".jpg"
+        if content.startswith(b"\x89PNG\r\n\x1a\n"):
+            return ".png"
+        if content[:4] == b"RIFF" and content[8:12] == b"WEBP":
+            return ".webp"
+        if content[4:8] == b"ftyp" and content[8:12] in cls.HEIC_BRANDS:
+            return ".heic"
+        return None
+
+    def save(self, employee_id: int, content: bytes) -> str:
+        if len(content) > self.MAX_BYTES:
+            raise ApiError("PHOTO_TOO_LARGE")
+        ext = self.detect_extension(content)
+        if ext is None:
+            raise ApiError("INVALID_PHOTO")
         filename = f"{employee_id}_{uuid.uuid4().hex[:12]}{ext}"
         (self._upload_dir / filename).write_bytes(content)
         return filename
+
+    def delete(self, filename: str) -> None:
+        """ลบรูปที่เพิ่งบันทึกแต่รายการไม่ผ่าน (เช่น กดเข้าซ้ำ) — ไม่ให้มีไฟล์กำพร้าสะสมในดิสก์"""
+        (self._upload_dir / Path(filename).name).unlink(missing_ok=True)
 
 
 class ClockService:
@@ -66,7 +88,7 @@ class ClockService:
     def list_employees(self) -> list[Employee]:
         return self._employees.list_active()
 
-    def clock(self, employee_id: Optional[int], type_: Optional[str], photo_name: str, content: bytes) -> AttendanceEvent:
+    def clock(self, employee_id: Optional[int], type_: Optional[str], content: bytes) -> AttendanceEvent:
         # ไม่มี field เวลาในรับเข้า — เวลามาจากเซิร์ฟเวอร์เท่านั้น (BR2)
         if type_ not in ("in", "out"):
             raise ApiError("BAD_REQUEST", "type ต้องเป็น in หรือ out")
@@ -78,17 +100,15 @@ class ClockService:
         if not content:
             raise ApiError("PHOTO_REQUIRED")
 
-        # BR3 นับเฉพาะวันนี้ — ให้ตรงกับปุ่มที่หน้าเว็บแสดงจาก /api/me/today
-        # ถ้าเมื่อวานลืมกดออก วันนั้นจะเป็น INCOMPLETE แต่วันนี้ยังกดเข้างานได้ตามปกติ
-        today_events = self._attendance.events_of(emp.id, self._clock.today())
-        last = today_events[-1].type if today_events else None
-        if type_ == "in" and last == "in":
-            raise ApiError("ALREADY_CLOCKED_IN")
-        if type_ == "out" and last != "in":
-            raise ApiError("NOT_CLOCKED_IN")
-
-        filename = self._photos.save(emp.id, photo_name, content)
-        return self._attendance.add(emp.id, type_, filename)
+        filename = self._photos.save(emp.id, content)  # ตรวจชนิด/ขนาดรูปก่อน ไม่ผ่านไม่แตะฐานข้อมูล
+        try:
+            # BR3 นับเฉพาะวันนี้ — ให้ตรงกับปุ่มที่หน้าเว็บแสดงจาก /api/me/today
+            # ถ้าเมื่อวานลืมกดออก วันนั้นจะเป็น INCOMPLETE แต่วันนี้ยังกดเข้างานได้ตามปกติ
+            # ตรวจ BR3 + บันทึก เป็นก้อนเดียวใน repository (ล็อกต่อพนักงาน) — service ไม่ต้องล็อกเอง
+            return self._attendance.record_checked(emp.id, type_, self._clock.today(), self._clock.now(), filename)
+        except BaseException:
+            self._photos.delete(filename)  # ไม่ผ่านกติกา/ฐานข้อมูลล้ม → ไม่ทิ้งรูปกำพร้า
+            raise
 
     def me_today(self, employee_id: int) -> dict:
         # BR5: คืนเฉพาะข้อมูลของ employee_id ที่ขอมา

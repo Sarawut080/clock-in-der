@@ -206,11 +206,35 @@ strong { font-weight: 600; }
 
 .btn svg { width: 16px; height: 16px; flex: none; }
 
+/* ---------- แผ่นหน้ามือถือ: ใช้ร่วมหน้าพนักงาน / เข้าสู่ระบบ / ลงทะเบียน ---------- */
+
+/* แผ่นกระดาษเดียวเต็มจอ บนจอกว้างเป็นแถบกลางหน้า */
+.sheet {
+  display: grid;
+  align-content: start;
+  gap: var(--space-5);
+  max-width: 30rem;
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-5) var(--space-6);
+  background: var(--color-bg-surface);
+}
+@media (min-width: 30.0625rem) {
+  .sheet { border-inline: 1px solid var(--color-separator); }
+}
+
+.masthead { display: grid; gap: var(--space-1); }
+
+.foot { padding-top: var(--space-5); border-top: 1px solid var(--color-separator); }
+.foot nav { display: grid; gap: var(--space-3); }
+.foot .btn { width: 100%; }
+
 /* ---------- ฟอร์ม ---------- */
 
 label.field { display: grid; gap: var(--space-2); font-weight: 600; }
 
-select, input[type="date"] {
+select, input[type="date"], input[type="text"], input[type="password"] {
+  /* ช่องกรอกทุกชนิดหน้าตาเดียวกัน */
   width: 100%;
   min-height: 48px;
   padding: var(--space-2) var(--space-3);
@@ -221,6 +245,35 @@ select, input[type="date"] {
   border: 1px solid var(--color-border-default);
   border-radius: var(--radius-control);
 }
+
+/* ฟอร์มเข้าสู่ระบบ / ลงทะเบียน: ช่องเรียงลงตามลำดับกรอก คำอธิบายอยู่ใต้ชื่อช่อง ข้อผิดพลาดอยู่ใต้ช่องที่ผิด */
+.form { display: grid; gap: var(--space-5); }
+.field-group { display: grid; gap: var(--space-2); align-content: start; }
+.field-group > label { font-weight: 600; }
+.field-hint { color: var(--color-text-secondary); font-size: var(--text-caption); line-height: 1.4; }
+.field-error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  color: var(--color-danger-text);
+  font-size: var(--text-caption);
+  line-height: 1.4;
+}
+.field-error svg { width: 16px; height: 16px; flex: none; }
+.field-error:empty { display: none; }
+[aria-invalid="true"] { border-color: var(--color-danger-solid); box-shadow: inset 0 0 0 1px var(--color-danger-solid); }
+
+/* PIN ช่องเดียว: ตัวเลขใหญ่ เว้นระยะ อ่านและแตะง่าย (ไม่แยก 6 กล่อง เพราะ paste / password manager / screen reader ใช้ไม่ได้) */
+input.pin-input {
+  min-height: 56px;
+  font-size: var(--text-title);
+  font-weight: 600;
+  letter-spacing: 0.4em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.btn[aria-disabled="true"] { cursor: progress; opacity: 0.7; }
 
 /* ---------- badge สถานะ: ไอคอน + ข้อความ ไม่สื่อด้วยสีอย่างเดียว ---------- */
 
@@ -235,7 +288,7 @@ select, input[type="date"] {
   width: 10rem;  /* กว้างเท่ากันทุกสถานะ รองรับข้อความยาวสุด "ข้อมูลยังไม่ครบ" + ตัวเลขสรุป */
   padding: 3px 10px;
   font-size: var(--text-caption);
-  font-weight: 700;
+  font-weight: 600;  /* โหลดฟอนต์ไว้แค่ 400 กับ 600 — 700 จะถูกเบราว์เซอร์สังเคราะห์เอง */
   line-height: 1.5;
   white-space: nowrap;
   border-radius: var(--radius-control);

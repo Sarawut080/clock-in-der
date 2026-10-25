@@ -1,7 +1,13 @@
 .venv/
 __pycache__/
+.pytest_cache/
+tests/_screenshots/
 *.pyc
 .env
 
 # รูปพนักงานเป็นข้อมูลส่วนบุคคล ห้ามขึ้น git (ตาม 03-work-split.md ข้อ 4)
 uploads/
+
+# สำเนา backup มีทั้งฐานข้อมูลและรูปพนักงาน — ห้ามขึ้น git เช่นกัน · log ของเซิร์ฟเวอร์
+backups/
+logs/

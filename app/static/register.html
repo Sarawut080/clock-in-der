@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ลงทะเบียน</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main class="sheet">
+    <header class="masthead">
+      <h1>ลงทะเบียน</h1>
+      <p class="muted">ใส่ชื่อของคุณและตั้ง PIN สำหรับเข้าสู่ระบบ</p>
+    </header>
+
+    <!-- region ต้องมีใน DOM ตั้งแต่แรก แล้วค่อยใส่ข้อความ -->
+    <div class="notice" id="notice" role="alert"></div>
+
+    <form class="form" id="form" novalidate>
+      <div class="field-group">
+        <label for="name">ชื่อ-นามสกุล</label>
+        <input id="name" name="name" type="text" autocomplete="name" maxlength="80" spellcheck="false" aria-describedby="name-error">
+        <p class="field-error" id="name-error"></p>
+      </div>
+
+      <div class="field-group">
+        <label for="pin">ตั้ง PIN</label>
+        <p class="field-hint" id="pin-hint">ตัวเลข 6 หลัก ใช้ทุกครั้งที่เข้าสู่ระบบ</p>
+        <input class="pin-input" id="pin" name="new-pin" type="password" inputmode="numeric" autocomplete="new-password" maxlength="6" aria-describedby="pin-hint pin-error">
+        <p class="field-error" id="pin-error"></p>
+      </div>
+
+      <div class="field-group">
+        <label for="pin-confirm">ใส่ PIN อีกครั้ง</label>
+        <input class="pin-input" id="pin-confirm" name="new-pin-confirm" type="password" inputmode="numeric" autocomplete="new-password" maxlength="6" aria-describedby="pin-confirm-error">
+        <p class="field-error" id="pin-confirm-error"></p>
+      </div>
+
+      <button class="btn btn-primary" id="submit" type="submit">ลงทะเบียน</button>
+    </form>
+
+    <footer class="foot">
+      <nav aria-label="สลับหน้า">
+        <a class="btn" href="/login">มีบัญชีแล้ว? เข้าสู่ระบบ</a>
+      </nav>
+    </footer>
+  </main>
+
+  <script src="/static/common.js"></script>
+  <script src="/static/register.js"></script>
+</body>
+</html>

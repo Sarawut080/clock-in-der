@@ -2,17 +2,21 @@
 import datetime as dt
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 
+from ..auth import AuthGuard
 from ..errors import ApiError
 from ..schemas import RangeRow, ReportRow
 from ..services import ReportService
 
 
 class ReportRouter:
-    def __init__(self, service: ReportService):
+    MAX_RANGE_DAYS = 366
+
+    def __init__(self, service: ReportService, guard: AuthGuard):
         self._service = service
-        self.router = APIRouter(prefix="/api/report")
+        # ต้องล็อกอินก่อนดูรายงาน ล็อกอินแล้วดูได้ทุกคน (ไม่แยกบทบาท)
+        self.router = APIRouter(prefix="/api/report", dependencies=[Depends(guard.require)])
         self.router.add_api_route("/daily", self.daily, methods=["GET"], response_model=list[ReportRow])
         self.router.add_api_route("/range", self.range_, methods=["GET"], response_model=list[RangeRow])
 
@@ -36,4 +40,7 @@ class ReportRouter:
         start, end = self._parse_date(from_), self._parse_date(to)
         if end < start:
             raise ApiError("BAD_REQUEST", "วันที่เริ่มต้องไม่หลังวันที่สิ้นสุด")
+        if (end - start).days >= self.MAX_RANGE_DAYS:
+            # ไม่จำกัดช่วงจะวนทีละวันหลายล้านรอบ (0001-01-01 ถึง 9999-12-31) เซิร์ฟเวอร์ค้างได้
+            raise ApiError("BAD_REQUEST", "เลือกช่วงวันที่ไม่เกิน 1 ปี")
         return self._service.range(start, end, employee_id)

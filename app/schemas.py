@@ -9,6 +9,22 @@ class Employee(BaseModel):
     name: str
 
 
+class RegisterBody(BaseModel):
+    name: str
+    pin: str
+    pin_confirm: str
+
+
+class LoginBody(BaseModel):
+    employee_id: int
+    pin: str
+
+
+class Me(BaseModel):
+    employee_id: int
+    name: str
+
+
 class Event(BaseModel):
     id: int
     type: Literal["in", "out"]
