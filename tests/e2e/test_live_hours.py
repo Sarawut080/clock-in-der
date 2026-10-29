@@ -65,11 +65,8 @@ def cells(page: Page, selector: str) -> int:
 def test_two_hours_running_fills_two_striped_cells(phone: Page):
     open_worker_page(phone, fake_today(running=125))
     expect(phone.locator("#hours")).to_have_text("2ชม.5นาที")
-    expect(phone.locator("#live-badge")).to_be_visible()
     assert cells(phone, ".is-filled") == 2 and cells(phone, ".is-live") == 2 and cells(phone, ".is-filled:not(.is-live)") == 0
-    expect(phone.locator("#tape-legend")).to_be_visible()
-    expect(phone.locator("#hours-note")).to_contain_text("เข้างานเมื่อ 11:55 น.")
-    expect(phone.locator("#hours-note")).to_contain_text("ยังไม่เป็นทางการ")
+    expect(phone.locator("#hours-note")).to_have_text("เข้างานเมื่อ 11:55 น.")
     label = phone.locator("#tape").get_attribute("aria-label")
     assert "2 ชม. 5 นาที" in label and "กำลังนับ" in label
     shot(phone, "worker-live-2h")
@@ -97,10 +94,10 @@ def test_closed_hours_are_solid_and_running_hours_are_striped(phone: Page):
 def test_finished_day_has_no_live_marks_and_shows_the_remaining_time(phone: Page):
     open_worker_page(phone, fake_today(completed=180))
     expect(phone.locator("#hours")).to_have_text("3ชม.0นาที")
-    expect(phone.locator("#live-badge")).to_be_hidden()
-    expect(phone.locator("#tape-legend")).to_be_hidden()
     assert cells(phone, ".is-filled") == 3 and cells(phone, ".is-live") == 0
-    expect(phone.locator("#hours-note")).to_have_text("ขาดอีก 5 ชม. 0 นาที จึงจะครบ 8 ชั่วโมง")
+    assert "กำลังนับ" not in phone.locator("#tape").get_attribute("aria-label")
+    expect(phone.locator("#hours-note")).to_have_text("")  # ไม่มี "ขาดอีก …" แล้ว (ผู้ใช้ขอตัด) ตัวเลขกับแถบบอกอยู่แล้ว
+    expect(phone.locator("#hours-note")).to_be_hidden()    # และไม่เว้นที่ว่างค้าง
 
 
 def test_eight_hours_while_running_turns_green_and_says_still_counting(phone: Page):
@@ -131,8 +128,8 @@ def test_numbers_tick_on_their_own_with_the_real_server(phone: Page):
     phone.click("#confirm-btn")
     expect(phone.locator("#done")).to_be_visible()
     phone.click("#done-btn")
-    expect(phone.locator("#live-badge")).to_be_visible()
     expect(phone.locator("#hours")).to_have_text("0ชม.0นาที")
+    assert "กำลังนับ" in phone.locator("#tape").get_attribute("aria-label")
 
     phone.clock.run_for(65_000)   # timer เดินจริงทุก 10 วินาที → ครบ 1 นาที
     expect(phone.locator("#hours")).to_have_text("0ชม.1นาที")
@@ -140,14 +137,14 @@ def test_numbers_tick_on_their_own_with_the_real_server(phone: Page):
     expect(phone.locator("#hours")).to_have_text("1ชม.1นาที")
     assert cells(phone, ".is-live") == 1
 
-    # ออกงาน: ป้ายกำลังนับและลายเฉียงหายทันที แล้วใช้ตัวเลขทางการจากเซิร์ฟเวอร์เท่านั้น
+    # ออกงาน: ลายเฉียงหายทันที แล้วใช้ตัวเลขทางการจากเซิร์ฟเวอร์เท่านั้น
     # (ตรงนี้เลื่อนเฉพาะนาฬิกาฝั่งเบราว์เซอร์ เซิร์ฟเวอร์ยังเดินตามเวลาจริง จึงทางการ ≈ 0 นาที — ยืนยันว่าตัวเลขสดไม่รั่วเข้าตัวเลขทางการ)
     phone.click("#clock-btn")
     pick_photo(phone)
     phone.click("#confirm-btn")
     expect(phone.locator("#done")).to_be_visible()
     phone.click("#done-btn")
-    expect(phone.locator("#live-badge")).to_be_hidden()
+    assert "กำลังนับ" not in phone.locator("#tape").get_attribute("aria-label")
     assert cells(phone, ".is-live") == 0 and cells(phone, ".is-filled") == 0
     expect(phone.locator("#hours")).to_have_text("0ชม.0นาที")
 
@@ -172,7 +169,7 @@ def test_crossing_midnight_drops_the_open_round_by_asking_the_server(phone: Page
     assert len(calls) == 1
     phone.clock.fast_forward(60_000)
     expect(phone.locator("#hours")).to_have_text("0ชม.0นาที")
-    expect(phone.locator("#live-badge")).to_be_hidden()
+    assert "กำลังนับ" not in phone.locator("#tape").get_attribute("aria-label")
     assert len(calls) == 2
 
 
@@ -184,12 +181,15 @@ def test_live_updates_are_not_announced_every_minute(phone: Page):
     expect(phone.locator("#announce")).to_have_text("")  # ช่องประกาศมีไว้ให้ตอนบันทึกสำเร็จเท่านั้น
 
 
-def test_pulse_dot_respects_reduced_motion(phone: Page):
-    open_worker_page(phone, fake_today(running=10))
-    assert "live-pulse" in phone.evaluate("() => getComputedStyle(document.querySelector('.live-dot')).animationName")
-    phone.emulate_media(reduced_motion="reduce")
-    assert phone.evaluate("() => getComputedStyle(document.querySelector('.live-dot')).animationName") == "none"
-    expect(phone.locator("#live-badge")).to_contain_text("กำลังนับ")  # ข้อความบอกสถานะอยู่เสมอ ไม่พึ่งการกะพริบ
+def test_no_extra_explanatory_text_on_screen(phone: Page):
+    """ผู้ใช้ขอตัดคำที่ไม่จำเป็นออก: ป้าย "กำลังนับ", คำอธิบายลายเฉียงใต้แถบ และท่อน "ยังไม่เป็นทางการ…" ในข้อความใต้ตัวเลข"""
+    open_worker_page(phone, fake_today(completed=90, running=70))
+    body = phone.locator("#status").inner_text()
+    for text in ("กำลังนับ", "ยังไม่เป็นทางการ", "ช่องลายเฉียง", "จะรวมเมื่อบันทึกออกงาน", "ขาดอีก", "จึงจะครบ"):
+        assert text not in body, f"ข้อความที่ตัดแล้วกลับมา: {text}"
+    assert phone.locator("#live-badge, #tape-legend, .live-dot").count() == 0
+    assert cells(phone, ".is-live") == 1  # ลายเฉียงยังต่างจากช่องทึบ (ไม่พึ่งสีอย่างเดียว)
+    assert "กำลังนับ" in phone.locator("#tape").get_attribute("aria-label")  # screen reader ยังได้ข้อมูล
 
 
 @pytest.mark.parametrize("running", [125, 13 * 60], ids=["2h", "13h-warning"])

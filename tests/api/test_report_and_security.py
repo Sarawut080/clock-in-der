@@ -119,8 +119,64 @@ class TestHeaders:
         for url in ("/api/auth/me", "/api/employees", "/", "/boss", "/photos/seed_3_today_in.svg"):
             assert boss.get(url).headers["cache-control"] == "no-store", url
 
-    def test_static_assets_may_be_cached(self, client):
-        assert "no-store" not in client.get("/static/style.css").headers.get("cache-control", "")
+    def test_static_assets_are_cached_but_always_revalidated(self, client):
+        cache = client.get("/static/style.css").headers.get("cache-control", "")
+        assert cache == "no-cache"  # เก็บได้ แต่ต้องถามซ้ำ (304) — ไม่ปล่อยให้เบราว์เซอร์เดาอายุแล้วใช้ไฟล์เก่า
+
+
+class TestAssetVersioning:
+    """หน้า HTML ใหม่ต้องไม่จับคู่กับ JS/CSS เก่าในแคช — เคยทำให้ข้อความเก่าขึ้นตัวใหญ่ 56px ในหน้าบันทึกเวลา"""
+
+    REF = re.compile(r'(?:src|href)="(/static/[^"]+)"')
+
+    @staticmethod
+    def sha8(path):
+        import hashlib
+
+        return hashlib.sha256(path.read_bytes()).hexdigest()[:8]
+
+    def check_page(self, client, url):
+        from app.main import BASE
+
+        html = client.get(url).text
+        refs = self.REF.findall(html)
+        assert refs, f"{url} ไม่มีไฟล์ static ให้ตรวจ"
+        for ref in refs:
+            path, _, query = ref.partition("?")
+            assert query.startswith("v="), f"{url}: {ref} ไม่มีเวอร์ชัน"
+            local = BASE / "static" / path.removeprefix("/static/")
+            assert query == f"v={self.sha8(local)}", f"{url}: เวอร์ชันของ {path} ไม่ตรงกับเนื้อไฟล์"
+            r = client.get(ref)
+            assert r.status_code == 200 and r.content == local.read_bytes()
+
+    @pytest.mark.parametrize("url", ["/login", "/register"])
+    def test_public_pages_reference_versioned_assets(self, client, url):
+        self.check_page(client, url)
+
+    @pytest.mark.parametrize("url", ["/", "/boss"])
+    def test_app_pages_reference_versioned_assets(self, boss, url):
+        self.check_page(boss, url)
+
+    def test_pages_are_still_html_and_never_cached(self, client):
+        r = client.get("/login")
+        assert r.headers["content-type"].startswith("text/html") and r.headers["cache-control"] == "no-store"
+
+    def test_version_changes_when_the_file_changes_without_restart(self, container, tmp_path):
+        static = tmp_path / "static"
+        static.mkdir()
+        (static / "page.html").write_text('<link href="/static/a.css"><script src="/static/a.js"></script>'
+                                          '<a href="/static/missing.js"></a><img src="/photos/x.jpg">', encoding="utf-8")
+        (static / "a.css").write_text("body{}", encoding="utf-8")
+        (static / "a.js").write_text("console.log(1)", encoding="utf-8")
+        app = ClockInApp(container, static_dir=static)
+        first = app.render_page("page.html")
+        assert f'href="/static/a.css?v={self.sha8(static / "a.css")}"' in first
+        assert 'href="/static/missing.js"' in first  # ไฟล์ไม่มีอยู่จริง: ไม่ใส่เวอร์ชันมั่วๆ
+        assert 'src="/photos/x.jpg"' in first        # URL ที่ไม่ใช่ /static ไม่ถูกแตะ
+        (static / "a.js").write_text("console.log('new version')", encoding="utf-8")
+        second = app.render_page("page.html")
+        assert first != second and f'src="/static/a.js?v={self.sha8(static / "a.js")}"' in second
+        assert app.render_page("page.html") == second  # ไม่เปลี่ยน = เวอร์ชันเดิม (ใช้ค่าที่คำนวณไว้)
 
     def test_security_headers_present(self, client):
         h = client.get("/login").headers

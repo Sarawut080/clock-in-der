@@ -104,21 +104,19 @@ class WorkerPage {
     this.lastPainted = key;
 
     const running = live.running;
-    $("live-badge").hidden = !running;
     $("hours").innerHTML = `${Math.floor(m / 60)}<small>ชม.</small>${m % 60}<small>นาที</small>`;
 
     const note = $("hours-note");
     note.classList.toggle("is-warn", running && m >= STALE_RUNNING_MINUTES);
     if (!running) {
-      note.textContent = m >= FULL_DAY_MINUTES
-        ? "ครบ 8 ชั่วโมงแล้ว"
-        : `ขาดอีก ${hoursText(FULL_DAY_MINUTES - m)} จึงจะครบ 8 ชั่วโมง`;
+      // ยังไม่ครบ 8 ชม.: ไม่มีข้อความ (ตัวเลขกับแถบบอกอยู่แล้ว ผู้ใช้ขอตัด "ขาดอีก … จึงจะครบ")
+      note.textContent = m >= FULL_DAY_MINUTES ? "ครบ 8 ชั่วโมงแล้ว" : "";
     } else if (m >= STALE_RUNNING_MINUTES) {
       note.textContent = `เข้างานเมื่อ ${this.openSinceText} น. มานานผิดปกติ ลืมบันทึกออกงานหรือเปล่า`;
     } else if (m >= FULL_DAY_MINUTES) {
       note.textContent = "ครบ 8 ชั่วโมงแล้ว (ยังนับอยู่ จนกว่าจะบันทึกออกงาน)";
     } else {
-      note.textContent = `เข้างานเมื่อ ${this.openSinceText} น. · ชั่วโมงนี้ยังไม่เป็นทางการ จะรวมเมื่อบันทึกออกงาน`;
+      note.textContent = `เข้างานเมื่อ ${this.openSinceText} น.`;
     }
 
     // แถบ: เติมทีละชั่วโมงเต็มช่อง — ช่องที่ได้จากรอบที่ยังนับอยู่ (is-live) เป็นลายเฉียง ไม่ใช้สีอย่างเดียวแยก
@@ -133,8 +131,8 @@ class WorkerPage {
     tape.innerHTML = cells.join("");
     tape.classList.toggle("is-full", m >= FULL_DAY_MINUTES);
     // role="img" ไม่ใช่ live region: ป้ายชื่อเปลี่ยนตามเวลาได้โดยไม่ถูกอ่านออกเสียงทุกนาที
+    // ข้อความ "กำลังนับ" ไม่แสดงบนจอ (ตามที่ผู้ใช้ขอ) แต่ยังอยู่ในป้ายชื่อของแถบสำหรับ screen reader
     tape.setAttribute("aria-label", `ทำงานแล้ว ${hoursText(m)}${running ? " (กำลังนับ)" : ""} จากเกณฑ์ 8 ชั่วโมง`);
-    $("tape-legend").hidden = filled <= solid;
   }
 
   startTicking() {

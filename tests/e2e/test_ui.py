@@ -83,8 +83,8 @@ def test_register_clock_in_out_dashboard_logout(phone: Page):
     phone.click("#done-btn")
     expect(phone.locator("#clock-btn")).to_have_text("บันทึกออกงาน")
     # กำลังนับสด: ไม่ขึ้น "ข้อมูลยังไม่ครบ" แล้ว (นั่นคือสถานะทางการในแดชบอร์ด) แต่โชว์ตัวเลขที่เดินอยู่
-    expect(phone.locator("#live-badge")).to_be_visible()
     expect(phone.locator("#hours")).to_have_text(re.compile(r"^0ชม\.[01]นาที$"))
+    expect(phone.locator("#hours-note")).to_contain_text("เข้างานเมื่อ")
 
     phone.click("#clock-btn")
     pick_photo(phone)

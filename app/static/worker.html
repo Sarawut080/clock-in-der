@@ -18,17 +18,11 @@
     }
     .figure small { margin: 0 var(--space-3) 0 var(--space-1); font-size: var(--text-heading); font-weight: 400; letter-spacing: 0; color: var(--color-text-secondary); }
 
-    /* ป้าย "กำลังนับ" เหนือตัวเลข: จุดกะพริบเฉพาะผู้ที่ไม่ได้ปิดแอนิเมชันในระบบ — ข้อความบอกสถานะอยู่แล้ว ไม่พึ่งการกะพริบ */
-    .live-badge { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-caption); font-weight: 600; color: var(--color-accent-text); }
-    .live-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
-    @media (prefers-reduced-motion: no-preference) {
-      .live-dot { animation: live-pulse 1.6s ease-in-out infinite; }
-      @keyframes live-pulse { 50% { opacity: 0.3; } }
-    }
+    #hours-note:empty { display: none; }  /* ไม่มีข้อความ = ไม่เว้นที่ว่างค้าง */
     #hours-note.is-warn { color: var(--color-danger-text); font-weight: 600; }
 
     /* เทปชั่วโมง: 8 ช่อง = 8 ชั่วโมง เติมทีละชั่วโมงเต็มช่อง
-       ช่องทึบ = ชั่วโมงที่บันทึกครบแล้ว · ช่องลายเฉียง (is-live) = ได้มาจากรอบที่ยังนับอยู่ ยังไม่เป็นทางการ */
+       ช่องทึบ = ชั่วโมงที่บันทึกครบแล้ว · ช่องลายเฉียง (is-live) = ได้มาจากรอบที่ยังนับอยู่ (ไม่มีข้อความอธิบายบนหน้าจอ ตามที่ผู้ใช้ขอ — ลายเฉียงต่างจากช่องทึบอยู่แล้ว) */
     .tape { display: grid; grid-template-columns: repeat(8, 1fr); gap: var(--space-1); }
     .tape-cell { position: relative; height: 12px; overflow: hidden; background: var(--color-bg-sunken); border: 1px solid var(--color-border-default); border-radius: 2px; }
     .tape-cell > i { position: absolute; inset: 0; background: var(--color-accent-solid); opacity: 0; }
@@ -71,14 +65,12 @@
     <section class="day" id="status" aria-labelledby="status-h" hidden>
       <h2 id="status-h">ชั่วโมงทำงานสะสมวันนี้</h2>
       <div>
-        <p class="live-badge" id="live-badge" hidden><span class="live-dot" aria-hidden="true"></span>กำลังนับ</p>
         <p class="figure num" id="hours"></p>
         <p class="muted" id="hours-note"></p>
       </div>
       <div>
         <div class="tape" id="tape" role="img"></div>
         <div class="tape-scale caption muted num" aria-hidden="true"><span>0 ชม.</span><span>8 ชม.</span></div>
-        <p class="caption muted" id="tape-legend" hidden>ช่องลายเฉียง = ชั่วโมงที่กำลังนับ ยังไม่เป็นทางการ</p>
       </div>
       <ul class="log num" id="log" aria-label="รายการเข้า-ออกงานวันนี้"></ul>
     </section>
@@ -101,7 +93,6 @@
       <div class="done" id="done" hidden>
         <p id="done-label"></p>
         <p class="figure num" id="done-time"></p>
-        <p class="muted caption">เวลาตามนาฬิกาเซิร์ฟเวอร์</p>
         <button class="btn" id="done-btn" type="button">เสร็จสิ้น</button>
       </div>
     </section>
