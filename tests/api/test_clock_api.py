@@ -47,6 +47,85 @@ def test_worked_minutes_follow_server_clock(logged_in, clock):
     assert today["worked_minutes"] == 270 and today["is_complete"] is True
 
 
+class TestLiveHours:
+    """ชั่วโมงสดของรอบที่ยังไม่ออกงาน — แสดงหน้าพนักงานเท่านั้น ไม่ทางการ: worked_minutes/is_complete ต้องไม่เปลี่ยนความหมาย"""
+
+    @staticmethod
+    def today(client):
+        return client.get("/api/me/today").json()
+
+    def test_no_events_means_zero_and_no_open_round(self, logged_in, clock):
+        client, _ = logged_in
+        t = self.today(client)
+        assert (t["live_minutes"], t["worked_minutes"], t["open_since"]) == (0, 0, None)
+        assert t["is_complete"] is True
+        assert t["server_now"] == clock.current.isoformat(timespec="seconds")  # เวลาเซิร์ฟเวอร์ ไม่ใช่เวลาเครื่องผู้ใช้
+
+    def test_running_round_counts_live_but_not_official(self, logged_in, clock):
+        client, _ = logged_in
+        started = clock.current
+        post_clock(client, "in")
+        clock.advance(hours=2, minutes=5)
+        t = self.today(client)
+        assert t["live_minutes"] == 125
+        assert t["worked_minutes"] == 0 and t["is_complete"] is False  # ทางการยังเป็น INCOMPLETE (SA 7.3)
+        assert t["open_since"] == started.isoformat(timespec="seconds")
+        assert t["server_now"] == clock.current.isoformat(timespec="seconds")
+
+    def test_live_minutes_grow_with_the_server_clock(self, logged_in, clock):
+        client, _ = logged_in
+        post_clock(client, "in")
+        seen = []
+        for _ in range(4):
+            clock.advance(minutes=30)
+            seen.append(self.today(client)["live_minutes"])
+        assert seen == [30, 60, 90, 120]
+
+    @pytest.mark.parametrize("seconds,expected", [(0, 0), (59, 0), (60, 1), (119, 1), (3600 + 59, 60)])
+    def test_partial_minutes_are_floored(self, logged_in, clock, seconds, expected):
+        client, _ = logged_in
+        post_clock(client, "in")
+        clock.advance(seconds=seconds)
+        assert self.today(client)["live_minutes"] == expected
+
+    def test_closed_rounds_plus_running_round(self, logged_in, clock):
+        client, _ = logged_in
+        post_clock(client, "in")
+        clock.advance(hours=1)
+        post_clock(client, "out")      # ปิดรอบแรก = 60 นาทีทางการ
+        clock.advance(minutes=30)      # พัก ไม่นับ
+        post_clock(client, "in")
+        clock.advance(minutes=30)      # รอบที่สองกำลังนับ
+        t = self.today(client)
+        assert t["worked_minutes"] == 60 and t["live_minutes"] == 90 and t["is_complete"] is False
+
+    def test_clock_out_freezes_live_to_the_official_number(self, logged_in, clock):
+        client, _ = logged_in
+        post_clock(client, "in")
+        clock.advance(hours=3)
+        post_clock(client, "out")
+        clock.advance(hours=5)  # เวลาผ่านไปต่อ ตัวเลขต้องไม่ขยับอีก
+        t = self.today(client)
+        assert t["live_minutes"] == t["worked_minutes"] == 180
+        assert t["open_since"] is None and t["is_complete"] is True
+
+    def test_round_left_open_overnight_does_not_carry_into_the_next_day(self, logged_in, clock):
+        client, _ = logged_in
+        post_clock(client, "in")
+        clock.advance(days=1)
+        t = self.today(client)
+        assert (t["live_minutes"], t["open_since"], t["last_type"]) == (0, None, None)  # BR3 นับเฉพาะวันนี้
+
+    def test_live_fields_never_leak_into_the_report_contract(self, logged_in, clock):
+        client, _ = logged_in
+        post_clock(client, "in")
+        clock.advance(hours=1)
+        rows = client.get(f"/api/report/daily?date={clock.current.date().isoformat()}").json()
+        mine = next(r for r in rows if r["name"] == "ผู้ทดสอบ ระบบ")
+        assert mine["status"] == "INCOMPLETE" and mine["worked_minutes"] == 0  # แดชบอร์ดไม่นับรอบที่ยังไม่ออก
+        assert not {"live_minutes", "open_since", "server_now"} & set(mine)
+
+
 class TestRequests:
     def test_photo_required(self, logged_in):
         client, _ = logged_in

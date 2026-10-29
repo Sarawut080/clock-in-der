@@ -40,6 +40,7 @@ class AttendanceSummarizer:
             worked_minutes=worked,
             is_complete=not incomplete,
             status=status,
+            open_since=open_in,
         )
 
 
@@ -115,14 +116,23 @@ class ClockService:
         emp = self._employees.get_active(employee_id)
         if emp is None:
             raise ApiError("EMPLOYEE_NOT_FOUND")
-        events = self._attendance.events_of(emp.id, self._clock.today())
+        now = self._clock.now()
+        events = self._attendance.events_of(emp.id, now.date())
         summary = AttendanceSummarizer.summarize(events)
+        # ชั่วโมงสด = ที่ออกงานแล้ว + รอบที่ยังไม่ออกนับถึงตอนนี้ — ไว้แสดงหน้าพนักงานเท่านั้น ไม่ทางการ
+        # (สถานะ/แดชบอร์ดยังใช้ worked_minutes: รอบที่ยังไม่ออกคือ INCOMPLETE จนกว่าจะกดออกงาน)
+        live = summary.worked_minutes
+        if summary.open_since is not None:
+            live += max(0, int((now - summary.open_since).total_seconds() // 60))
         return {
             "employee_id": emp.id,
             "name": emp.name,
             "last_type": events[-1].type if events else None,
             "worked_minutes": summary.worked_minutes,
             "is_complete": summary.is_complete,
+            "live_minutes": live,
+            "open_since": summary.open_since.isoformat(timespec="seconds") if summary.open_since else None,
+            "server_now": now.isoformat(timespec="seconds"),  # เว็บใช้คำนวณส่วนต่างจากนาฬิกามือถือ ไม่เชื่อเวลาเครื่องผู้ใช้ (BR2)
             "events": [e.to_api() for e in events],
         }
 

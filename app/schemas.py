@@ -45,6 +45,9 @@ class MeToday(BaseModel):
     last_type: Optional[Literal["in", "out"]]
     worked_minutes: int   # นาที ไม่ใช่ชั่วโมง (นับเฉพาะรอบที่ออกงานแล้ว)
     is_complete: bool     # False = มีรอบที่เข้างานแล้วแต่ยังไม่ออก
+    live_minutes: int     # worked_minutes + รอบที่ยังไม่ออกนับถึง server_now — ค่าสดไม่ทางการ ใช้แสดงหน้าพนักงานเท่านั้น
+    open_since: Optional[str]  # เวลาเข้างานของรอบที่ยังไม่ออก (ISO +07:00) หรือ null
+    server_now: str       # เวลาเซิร์ฟเวอร์ขณะตอบ (ISO +07:00)
     events: list[Event]
 
 

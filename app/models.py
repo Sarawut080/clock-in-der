@@ -43,6 +43,7 @@ class AttendanceEvent:
 class DaySummary:
     first_in: Optional[str]
     last_out: Optional[str]
-    worked_minutes: int
+    worked_minutes: int  # ทางการ: นับเฉพาะรอบที่ออกงานแล้ว (D2/D4)
     is_complete: bool
     status: str  # OK | SHORT | INCOMPLETE
+    open_since: Optional[datetime] = None  # เวลาเข้างานของรอบที่ยังไม่ออก (ไว้แสดงชั่วโมงสด ไม่ใช่ชั่วโมงทางการ)

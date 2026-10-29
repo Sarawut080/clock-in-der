@@ -4,12 +4,13 @@ screenshot เก็บไว้ที่ tests/_screenshots (ไม่ขึ้
 """
 import re
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pytest
 from playwright.sync_api import Page, expect
 
+from app.mock_store import BKK
 from tests.conftest import DEMO_PIN
 from tests.helpers import tiny_png
 
@@ -81,7 +82,9 @@ def test_register_clock_in_out_dashboard_logout(phone: Page):
     expect(phone.locator("#done-label")).to_have_text("บันทึกเข้างานแล้ว")
     phone.click("#done-btn")
     expect(phone.locator("#clock-btn")).to_have_text("บันทึกออกงาน")
-    expect(phone.locator("#hours")).to_have_text("ข้อมูลยังไม่ครบ")
+    # กำลังนับสด: ไม่ขึ้น "ข้อมูลยังไม่ครบ" แล้ว (นั่นคือสถานะทางการในแดชบอร์ด) แต่โชว์ตัวเลขที่เดินอยู่
+    expect(phone.locator("#live-badge")).to_be_visible()
+    expect(phone.locator("#hours")).to_have_text(re.compile(r"^0ชม\.[01]นาที$"))
 
     phone.click("#clock-btn")
     pick_photo(phone)

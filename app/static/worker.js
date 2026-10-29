@@ -8,6 +8,40 @@ const LABEL = { in: "เข้างาน", out: "ออกงาน" };
 const hhmm = (iso) => iso.slice(11, 16);
 const hoursText = (m) => `${Math.floor(m / 60)} ชม. ${m % 60} นาที`;
 
+const STALE_RUNNING_MINUTES = 720;  // เข้างานค้างเกิน 12 ชม. = น่าจะลืมกดออกงาน
+const TICK_MS = 10_000;             // นับสดทุก 10 วินาที (ตัวเลขเปลี่ยนทุกนาที แต่เช็คถี่กว่านั้นให้เปลี่ยนตรงเวลา)
+const THAI_OFFSET_MS = 7 * 3600 * 1000;
+
+// ชั่วโมงสดของวันนี้ = ที่ออกงานแล้ว + รอบที่ยังไม่ออกนับถึงตอนนี้ (แสดงหน้าพนักงานเท่านั้น ไม่ใช่ชั่วโมงทางการ)
+// ไม่เชื่อนาฬิกามือถือ (BR2): เก็บส่วนต่างระหว่าง server_now กับ Date.now() ตอนโหลด แล้วนับต่อจากนั้น
+// ใช้ Date.now() ไม่ใช่ตัวนับของ timer เพราะเครื่องหลับ/พักหน้าจอแล้ว timer ถูกหยุด แต่เวลาจริงเดินต่อ
+class LiveHours {
+  constructor(data) {
+    this.completed = data.worked_minutes;
+    this.openSince = data.open_since ? Date.parse(data.open_since) : null;
+    this.offset = Date.parse(data.server_now) - Date.now();
+    this.serverDay = data.server_now.slice(0, 10);  // วันที่เวลาไทย ตอนโหลด
+  }
+
+  get running() {
+    return this.openSince !== null;
+  }
+
+  now() {
+    return Date.now() + this.offset;
+  }
+
+  minutes() {
+    if (!this.running) return this.completed;
+    return this.completed + Math.max(0, Math.floor((this.now() - this.openSince) / 60000));
+  }
+
+  // ข้ามเที่ยงคืนเวลาไทยจากตอนโหลด: รอบที่ค้างไม่ถูกยกไปวันใหม่ (BR3 นับเฉพาะวันนี้) ต้องถามเซิร์ฟเวอร์ใหม่
+  dayChanged() {
+    return new Date(this.now() + THAI_OFFSET_MS).toISOString().slice(0, 10) !== this.serverDay;
+  }
+}
+
 class WorkerPage {
   constructor(api, notice) {
     this.api = api;
@@ -16,6 +50,10 @@ class WorkerPage {
     this.nextType = null;
     this.photo = null;
     this.previewUrl = null;
+    this.live = null;
+    this.openSinceText = null;
+    this.timer = null;
+    this.lastPainted = null;
   }
 
   async init() {
@@ -41,39 +79,80 @@ class WorkerPage {
     $("cancel-btn").addEventListener("click", () => this.onCancel());
     $("confirm-btn").addEventListener("click", () => this.onConfirm());
     $("done-btn").addEventListener("click", () => this.onDone());
+    // มือถือพักหน้าจอ/สลับแอปแล้ว timer หยุด — กลับมาเห็นหน้าเมื่อไหร่ถามเซิร์ฟเวอร์ใหม่ (ไม่ poll เป็นระยะ)
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden && this.employeeId) this.refreshStatus().catch(() => {});
+    });
   }
 
   // ---------- UC4: ชั่วโมงสะสมวันนี้ ----------
 
   renderHours(data) {
-    const hours = $("hours");
-    hours.classList.toggle("is-text", !data.is_complete);
+    this.live = new LiveHours(data);
+    this.openSinceText = data.open_since ? hhmm(data.open_since) : null;
+    this.lastPainted = null;
+    this.paint();
+    this.startTicking();
+  }
 
-    if (!data.is_complete) {
-      // alternative flow ของ UC4: มีรอบที่ยังไม่ออกงาน → ไม่แสดงตัวเลข
-      const openIn = data.events.filter((e) => e.type === "in").at(-1);
-      hours.textContent = "ข้อมูลยังไม่ครบ";
-      $("hours-note").textContent = `เข้างานเมื่อ ${hhmm(openIn.recorded_at)} น. ชั่วโมงของรอบนี้จะนับเมื่อบันทึกออกงาน`;
-    } else {
-      const m = data.worked_minutes;
-      hours.innerHTML = `${Math.floor(m / 60)}<small>ชม.</small>${m % 60}<small>นาที</small>`;
-      $("hours-note").textContent = m >= FULL_DAY_MINUTES
+  // วาดตัวเลข ข้อความ และแถบจากเวลา "ตอนนี้" — เรียกซ้ำได้ ไม่วาดใหม่ถ้านาทียังเท่าเดิม
+  paint() {
+    const live = this.live;
+    const m = live.minutes();
+    const key = `${m}|${live.running}`;
+    if (key === this.lastPainted) return;
+    this.lastPainted = key;
+
+    const running = live.running;
+    $("live-badge").hidden = !running;
+    $("hours").innerHTML = `${Math.floor(m / 60)}<small>ชม.</small>${m % 60}<small>นาที</small>`;
+
+    const note = $("hours-note");
+    note.classList.toggle("is-warn", running && m >= STALE_RUNNING_MINUTES);
+    if (!running) {
+      note.textContent = m >= FULL_DAY_MINUTES
         ? "ครบ 8 ชั่วโมงแล้ว"
         : `ขาดอีก ${hoursText(FULL_DAY_MINUTES - m)} จึงจะครบ 8 ชั่วโมง`;
+    } else if (m >= STALE_RUNNING_MINUTES) {
+      note.textContent = `เข้างานเมื่อ ${this.openSinceText} น. มานานผิดปกติ ลืมบันทึกออกงานหรือเปล่า`;
+    } else if (m >= FULL_DAY_MINUTES) {
+      note.textContent = "ครบ 8 ชั่วโมงแล้ว (ยังนับอยู่ จนกว่าจะบันทึกออกงาน)";
+    } else {
+      note.textContent = `เข้างานเมื่อ ${this.openSinceText} น. · ชั่วโมงนี้ยังไม่เป็นทางการ จะรวมเมื่อบันทึกออกงาน`;
     }
 
-    const done = data.is_complete ? data.worked_minutes : 0;
+    // แถบ: เติมทีละชั่วโมงเต็มช่อง — ช่องที่ได้จากรอบที่ยังนับอยู่ (is-live) เป็นลายเฉียง ไม่ใช้สีอย่างเดียวแยก
+    const filled = Math.min(8, Math.floor(m / 60));
+    const solid = Math.min(filled, Math.floor(live.completed / 60));
     const cells = [];
     for (let i = 0; i < 8; i++) {
-      const fill = Math.max(0, Math.min(1, (done - i * 60) / 60));
-      cells.push(`<span class="tape-cell"><i style="width:${fill * 100}%"></i></span>`);
+      const cls = i >= filled ? "" : i < solid ? " is-filled" : " is-filled is-live";
+      cells.push(`<span class="tape-cell${cls}"><i></i></span>`);
     }
     const tape = $("tape");
     tape.innerHTML = cells.join("");
-    tape.classList.toggle("is-full", done >= FULL_DAY_MINUTES);
-    tape.setAttribute("aria-label", data.is_complete
-      ? `ทำงานแล้ว ${hoursText(done)} จากเกณฑ์ 8 ชั่วโมง`
-      : "ข้อมูลยังไม่ครบ");
+    tape.classList.toggle("is-full", m >= FULL_DAY_MINUTES);
+    // role="img" ไม่ใช่ live region: ป้ายชื่อเปลี่ยนตามเวลาได้โดยไม่ถูกอ่านออกเสียงทุกนาที
+    tape.setAttribute("aria-label", `ทำงานแล้ว ${hoursText(m)}${running ? " (กำลังนับ)" : ""} จากเกณฑ์ 8 ชั่วโมง`);
+    $("tape-legend").hidden = filled <= solid;
+  }
+
+  startTicking() {
+    this.stopTicking();
+    if (this.live && this.live.running) this.timer = setInterval(() => this.tick(), TICK_MS);
+  }
+
+  stopTicking() {
+    if (this.timer !== null) clearInterval(this.timer);
+    this.timer = null;
+  }
+
+  tick() {
+    if (this.live.dayChanged()) {
+      this.refreshStatus().catch(() => {});  // ข้ามเที่ยงคืน: รอบที่ค้างไม่ยกไปวันใหม่ ให้เซิร์ฟเวอร์ตัดสิน
+      return;
+    }
+    this.paint();
   }
 
   renderLog(events) {
