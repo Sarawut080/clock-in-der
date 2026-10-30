@@ -92,11 +92,15 @@ def test_register_clock_in_out_dashboard_logout(phone: Page):
     expect(phone.locator("#done-label")).to_have_text("บันทึกออกงานแล้ว")
     phone.click("#done-btn")
     expect(phone.locator("#log li")).to_have_count(2)
+    # วันละ 1 รอบ: ออกงานแล้วไม่มีปุ่มบันทึกอีก แสดงข้อความว่าครบแล้ว
+    expect(phone.locator("#clock-btn")).to_be_hidden()
+    expect(phone.locator("#day-complete")).to_be_visible()
     shot(phone, "worker-mobile")
 
     phone.click("text=ไปหน้าแดชบอร์ด")
     row = phone.locator("tr.person", has_text=name)
     expect(row).to_have_count(1)
+    expect(row.locator("td.c-date")).to_contain_text(str(date.today().year + 543))  # คอลัมน์วันที่แสดงปี พ.ศ.
     expect(row.locator(".badge")).to_contain_text("ไม่ครบ 8 ชม.")
     row.get_by_role("button", name="ดูรูป 2 รูป").click()
     imgs = phone.locator("tr.detail:not([hidden]) img.photo")
@@ -217,15 +221,15 @@ def test_dashboard_mobile_layout_is_consistent(phone: Page):
     badge_widths = phone.locator("tr.person .badge").evaluate_all("els => els.map(e => Math.round(e.getBoundingClientRect().width))")
     assert len(set(badge_widths)) == 1, f"ป้ายสถานะกว้างไม่เท่ากัน {badge_widths}"
 
-    # คอลัมน์ เข้างาน / ออกงาน / รวม ต้องตรงกันทุกแถว (ไม่เลื่อนตามเนื้อหา)
-    for cell in ("c-in", "c-out", "c-hours"):
+    # คอลัมน์ วันที่ / เข้างาน / ออกงาน ต้องตรงกันทุกแถว (ไม่เลื่อนตามเนื้อหา)
+    for cell in ("c-date", "c-in", "c-out"):
         xs = phone.locator(f"tr.person td.{cell}").evaluate_all("els => els.map(e => Math.round(e.getBoundingClientRect().left))")
         assert len(set(xs)) == 1, f"{cell} ไม่ตรงคอลัมน์ {xs}"
 
     # ป้ายกำกับเหนือค่า (ทำด้วย ::before จึงไม่อยู่ใน DOM text ต้องอ่านจาก computed style)
     labels = phone.locator("tr.person").first.locator("td[data-label]").evaluate_all(
         "els => els.map(e => getComputedStyle(e, '::before').content)")
-    assert labels == ['"เข้างาน"', '"ออกงาน"', '"รวม"'], labels
+    assert labels == ['"วันที่"', '"เข้างาน"', '"ออกงาน"'], labels
     assert no_horizontal_scroll(phone)
     shot(phone, "dashboard-mobile")
 

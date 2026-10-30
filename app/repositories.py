@@ -14,7 +14,10 @@ def normalize_name(name: str) -> str:
 
 
 def ensure_can_clock(type_: str, last_type: Optional[str]) -> None:
-    """BR3: กดเข้าซ้ำ/ออกซ้ำไม่ได้ — last_type คือเหตุการณ์ล่าสุดของ 'วันนี้' (ลืมกดออกเมื่อวาน วันนี้ก็ยังเข้างานได้)"""
+    """BR3: กดเข้าซ้ำ/ออกซ้ำไม่ได้ — last_type คือเหตุการณ์ล่าสุดของ 'วันนี้' (ลืมกดออกเมื่อวาน วันนี้ก็ยังเข้างานได้)
+    วันละ 1 รอบ: ออกงานแล้ว = จบวัน กดเข้า/ออกอีกไม่ได้ (1 วันมีรูปเข้า 1 รูป ออก 1 รูป)"""
+    if last_type == "out":
+        raise ApiError("DAY_COMPLETE")
     if type_ == "in" and last_type == "in":
         raise ApiError("ALREADY_CLOCKED_IN")
     if type_ == "out" and last_type != "in":

@@ -77,20 +77,22 @@ class StatusBadge {
 
 class ReportTable {
   static COLUMNS = [
+    ["วันที่", ""],
     ["ชื่อ", ""],
-    ["เข้างานครั้งแรก", "col-num"],
-    ["ออกงานครั้งสุดท้าย", "col-num"],
-    ["ชั่วโมงทำงานสะสม", "col-num"],
+    ["เวลาเข้างาน", "col-num"],
+    ["เวลาออกงาน", "col-num"],
     ["สถานะ", ""],
     ["รูปถ่าย", ""],
   ];
 
-  // เรื่องที่ต้องตามขึ้นก่อน: ข้อมูลยังไม่ครบ → ไม่ครบ 8 ชม. → ครบ แล้วเรียงตามชื่อ
+  // วันล่าสุดอยู่บน แล้วในวันเดียวกัน เรื่องที่ต้องตามขึ้นก่อน: ข้อมูลยังไม่ครบ → ไม่ครบ 8 ชม. → ครบ แล้วเรียงตามชื่อ
   static RANK = { INCOMPLETE: 0, SHORT: 1, OK: 2 };
 
   static sorted(rows) {
     return [...rows].sort((a, b) =>
-      ReportTable.RANK[a.status] - ReportTable.RANK[b.status] || a.name.localeCompare(b.name, "th"));
+      b.date.localeCompare(a.date) ||
+      ReportTable.RANK[a.status] - ReportTable.RANK[b.status] ||
+      a.name.localeCompare(b.name, "th"));
   }
 
   constructor(container) {
@@ -126,12 +128,11 @@ class ReportTable {
       if (typeof content === "string") td.textContent = content; else td.append(content);
       return td;
     };
-    const incomplete = r.status === "INCOMPLETE";
     const tr = el("tr", { class: "person", role: "row" },
+      cell("c-date num", "วันที่", DateText.thai(r.date)),
       cell("c-name", null, el("strong", { text: r.name })),
       cell("c-in col-num num", "เข้างาน", r.first_in ? r.first_in + " น." : ReportTable.empty("ไม่มีเวลาเข้างาน")),
       cell("c-out col-num num", "ออกงาน", r.last_out ? r.last_out + " น." : ReportTable.empty("ยังไม่ออกงาน")),
-      cell("c-hours col-num num", "รวม", incomplete ? ReportTable.empty("ยังรวมชั่วโมงไม่ได้ เพราะยังไม่ออกงาน") : DateText.hours(r.worked_minutes)),
       cell("c-status", null, StatusBadge.create(r.status)),
       cell("c-photos", null, btn),
     );
@@ -145,7 +146,7 @@ class ReportTable {
     return [tr, detail];
   }
 
-  render(rows, grouped) {
+  render(rows) {
     const cols = ReportTable.COLUMNS;
     if (rows.length === 0) {
       this.container.replaceChildren(el("div", { class: "empty" },
@@ -160,21 +161,7 @@ class ReportTable {
       el("thead", { role: "rowgroup" }, el("tr", { role: "row" },
         ...cols.map(([text, cls]) => el("th", { scope: "col", role: "columnheader", class: cls, text })))));
 
-    if (!grouped) {
-      table.appendChild(el("tbody", { role: "rowgroup" }, ...ReportTable.sorted(rows).flatMap((r) => this.personRows(r, cols.length))));
-    } else {
-      // ช่วงวันที่: แยกกลุ่มตามวัน วันล่าสุดอยู่บน
-      const byDate = new Map();
-      for (const r of rows) {
-        if (!byDate.has(r.date)) byDate.set(r.date, []);
-        byDate.get(r.date).push(r);
-      }
-      for (const date of [...byDate.keys()].sort().reverse()) {
-        const head = el("tr", { class: "group", role: "row" },
-          el("th", { scope: "rowgroup", role: "rowheader", colspan: cols.length, text: DateText.thai(date, DateText.LONG) }));
-        table.appendChild(el("tbody", { role: "rowgroup" }, head, ...ReportTable.sorted(byDate.get(date)).flatMap((r) => this.personRows(r, cols.length))));
-      }
-    }
+    table.appendChild(el("tbody", { role: "rowgroup" }, ...ReportTable.sorted(rows).flatMap((r) => this.personRows(r, cols.length))));
     this.container.replaceChildren(table);
   }
 }
@@ -297,19 +284,17 @@ class BossPage {
     const requestId = ++this.latestRequest;
     try {
       let rows;
-      let grouped;
       if (filter.from === filter.to && !filter.employeeId) {
-        rows = await this.api.request("/api/report/daily?date=" + filter.from);  // FR5
-        grouped = false;
+        // FR5: รายงานรายวันไม่มี field date (ตามสัญญา) — วันที่คือวันที่ที่ขอ
+        rows = (await this.api.request("/api/report/daily?date=" + filter.from)).map((r) => ({ ...r, date: filter.from }));
       } else {
         const q = new URLSearchParams({ from: filter.from, to: filter.to });  // FR6
         if (filter.employeeId) q.set("employee_id", filter.employeeId);
         rows = await this.api.request("/api/report/range?" + q);
-        grouped = filter.from !== filter.to;
       }
       if (requestId !== this.latestRequest) return;  // มีการกรองใหม่ระหว่างรอ ทิ้งผลเก่า
       this.renderHead(rows, filter);
-      this.table.render(rows, grouped);
+      this.table.render(rows);
     } catch (err) {
       if (requestId === this.latestRequest) this.notice.show(err.message);
     }

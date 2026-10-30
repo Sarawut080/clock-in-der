@@ -38,6 +38,7 @@
     .log .t { font-weight: 600; }
 
     .clock-btn { width: 100%; min-height: 64px; font-size: var(--text-heading); }
+    .day-complete { padding: var(--space-4) 0; text-align: center; }
 
     .photo-step { display: grid; gap: var(--space-4); }
     .preview { max-height: 22rem; }
@@ -78,6 +79,7 @@
     <!-- UC2 / UC3 -->
     <section id="action" aria-label="บันทึกเวลา" hidden>
       <button class="btn btn-primary clock-btn" id="clock-btn" type="button"></button>
+      <p class="muted day-complete" id="day-complete" hidden>วันนี้บันทึกเข้างานและออกงานครบแล้ว</p>
 
       <div class="photo-step" id="photo-step" hidden>
         <p id="photo-hint"></p>

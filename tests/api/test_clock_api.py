@@ -30,12 +30,14 @@ def test_full_day_state_machine(logged_in):
     assert r.status_code == 200 and r.json()["type"] == "in" and r.json()["recorded_at"].endswith("+07:00")
     assert code(post_clock(client, "in")) == "ALREADY_CLOCKED_IN"
     assert post_clock(client, "out").status_code == 200
-    assert code(post_clock(client, "out")) == "NOT_CLOCKED_IN"
-    assert post_clock(client, "in").status_code == 200  # หลายรอบต่อวัน (D4)
+    # วันละ 1 รอบ: ออกงานแล้วจบวัน เข้า/ออกอีกไม่ได้ (1 วัน = รูปเข้า 1 + รูปออก 1)
+    r = post_clock(client, "in")
+    assert r.status_code == 409 and code(r) == "DAY_COMPLETE"
+    assert code(post_clock(client, "out")) == "DAY_COMPLETE"
     today = client.get("/api/me/today").json()
-    assert today["employee_id"] == emp_id and today["last_type"] == "in"
-    assert [e["type"] for e in today["events"]] == ["in", "out", "in"]
-    assert today["is_complete"] is False
+    assert today["employee_id"] == emp_id and today["last_type"] == "out"
+    assert [e["type"] for e in today["events"]] == ["in", "out"]
+    assert today["is_complete"] is True
 
 
 def test_worked_minutes_follow_server_clock(logged_in, clock):
@@ -88,14 +90,14 @@ class TestLiveHours:
         clock.advance(seconds=seconds)
         assert self.today(client)["live_minutes"] == expected
 
-    def test_closed_rounds_plus_running_round(self, logged_in, clock):
-        client, _ = logged_in
-        post_clock(client, "in")
-        clock.advance(hours=1)
-        post_clock(client, "out")      # ปิดรอบแรก = 60 นาทีทางการ
-        clock.advance(minutes=30)      # พัก ไม่นับ
-        post_clock(client, "in")
-        clock.advance(minutes=30)      # รอบที่สองกำลังนับ
+    def test_closed_rounds_plus_running_round(self, logged_in, container, clock):
+        # API รับวันละ 1 รอบแล้ว แต่ข้อมูลเก่าอาจมีหลายรอบ — ใส่ที่ที่เก็บข้อมูลตรงๆ ให้การนับยังถูก
+        client, emp_id = logged_in
+        start = clock.current
+        container.attendance.add(emp_id, "in", "a.jpg", start)
+        container.attendance.add(emp_id, "out", "b.jpg", start + timedelta(hours=1))                # รอบแรก = 60 นาทีทางการ
+        container.attendance.add(emp_id, "in", "c.jpg", start + timedelta(hours=1, minutes=30))     # พัก 30 นาที ไม่นับ
+        clock.advance(hours=2)                                                                      # รอบที่สองกำลังนับ 30 นาที
         t = self.today(client)
         assert t["worked_minutes"] == 60 and t["live_minutes"] == 90 and t["is_complete"] is False
 

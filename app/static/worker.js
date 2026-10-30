@@ -182,8 +182,9 @@ class WorkerPage {
     this.renderLog(data.events);
 
     // ปุ่มเดียว ระบบเลือกประเภทให้จากสถานะล่าสุด (จุดตัดสินใจใน flowchart)
-    this.nextType = data.last_type === "in" ? "out" : "in";
-    $("clock-btn").textContent = "บันทึก" + LABEL[this.nextType];
+    // วันละ 1 รอบ: ออกงานแล้ว = จบวัน ไม่มีปุ่มให้กด (null)
+    this.nextType = data.last_type === "out" ? null : data.last_type === "in" ? "out" : "in";
+    if (this.nextType) $("clock-btn").textContent = "บันทึก" + LABEL[this.nextType];
   }
 
   async loadToday() {
@@ -208,7 +209,8 @@ class WorkerPage {
   showStep(step) {
     // ขั้นถ่ายรูปซ่อนสรุปชั่วโมงไว้ชั่วคราว ให้จอมือถือเห็นแค่สิ่งที่ต้องทำ
     $("status").hidden = !this.employeeId || step === "photo";
-    $("clock-btn").hidden = step !== "start";
+    $("clock-btn").hidden = step !== "start" || !this.nextType;
+    $("day-complete").hidden = step !== "start" || Boolean(this.nextType);
     $("photo-step").hidden = step !== "photo";
     $("done").hidden = step !== "done";
     if (step !== "photo") this.clearPhoto();
