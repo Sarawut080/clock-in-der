@@ -64,4 +64,9 @@ class AttendanceRepository(ABC):
         """เหตุการณ์ของวันนั้น (ตามเวลาไทย) เรียงตามเวลา"""
 
     @abstractmethod
+    def events_between(self, start: date, end: date, employee_id: Optional[int] = None) -> list[AttendanceEvent]:
+        """เหตุการณ์ตั้งแต่วัน start ถึง end (รวมทั้งสองวัน ตามเวลาไทย) ของทุกคน หรือเฉพาะ employee_id
+        เรียงตามเวลา — รายงานดึงครั้งเดียวทั้งช่วง แทนการถามทีละคนทีละวัน"""
+
+    @abstractmethod
     def count(self) -> int: ...

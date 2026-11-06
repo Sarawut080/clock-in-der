@@ -61,6 +61,30 @@ class TestRangeReport:
         assert rows and {r["employee_id"] for r in rows} == {3}
         assert all(re.fullmatch(r"\d{4}-\d\d-\d\d", r["date"]) for r in rows)
 
+    def test_range_matches_daily_report_day_by_day(self, boss, clock):
+        # รายงานช่วงดึงครั้งเดียวทั้งช่วง ต้องได้แถวเหมือนเรียกรายวันทีละวัน (ลำดับ: วัน → พนักงานตาม id)
+        today = clock.current.date()
+        days = [today - timedelta(days=n) for n in range(7, -1, -1)]
+        rows = boss.get(f"/api/report/range?from={days[0].isoformat()}&to={today.isoformat()}").json()
+        expected = [
+            {"date": d.isoformat(), **r} for d in days for r in boss.get(f"/api/report/daily?date={d.isoformat()}").json()
+        ]
+        assert rows and rows == expected
+
+    def test_range_splits_days_at_thai_midnight(self, boss, container, clock):
+        midnight = clock.current.replace(hour=0, minute=0, second=0, microsecond=0)
+        emp = container.employees.add("ข้ามคืน ทดสอบ", "x")
+        container.attendance.add(emp.id, "in", "a.jpg", midnight - timedelta(minutes=1))
+        container.attendance.add(emp.id, "in", "b.jpg", midnight)
+        today, yesterday = midnight.date(), (midnight - timedelta(days=1)).date()
+        rows = boss.get(f"/api/report/range?from={yesterday}&to={today}&employee_id={emp.id}").json()
+        assert [(r["date"], [e["photo_path"] for e in r["events"]]) for r in rows] == [
+            (yesterday.isoformat(), ["a.jpg"]),
+            (today.isoformat(), ["b.jpg"]),
+        ]
+        only_today = boss.get(f"/api/report/range?from={today}&to={today}&employee_id={emp.id}").json()
+        assert [r["date"] for r in only_today] == [today.isoformat()]
+
     def test_unknown_employee_filter_is_empty_not_error(self, boss):
         assert boss.get("/api/report/range?from=2026-10-01&to=2026-10-02&employee_id=999").json() == []
 
@@ -122,6 +146,13 @@ class TestHeaders:
     def test_static_assets_are_cached_but_always_revalidated(self, client):
         cache = client.get("/static/style.css").headers.get("cache-control", "")
         assert cache == "no-cache"  # เก็บได้ แต่ต้องถามซ้ำ (304) — ไม่ปล่อยให้เบราว์เซอร์เดาอายุแล้วใช้ไฟล์เก่า
+
+    def test_text_is_gzipped_but_photos_are_not(self, boss):
+        gz = {"Accept-Encoding": "gzip"}
+        for url in ("/static/boss.js", "/boss"):
+            assert boss.get(url, headers=gz).headers.get("content-encoding") == "gzip", url
+        photo = boss.get("/photos/seed_3_today_in.svg", headers=gz)
+        assert photo.status_code == 200 and "content-encoding" not in photo.headers
 
 
 class TestAssetVersioning:

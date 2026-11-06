@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS attendance (
 );
 
 CREATE INDEX IF NOT EXISTS idx_attendance_emp_date ON attendance (employee_id, recorded_at);
+CREATE INDEX IF NOT EXISTS idx_attendance_recorded_at ON attendance (recorded_at);  -- รายงานช่วงวันของทุกคน
 
 -- BR4 บังคับที่ฐานข้อมูล: แก้/ลบบันทึกดิบไม่ได้ แม้แก้ผ่าน pgAdmin ก็ถูกปฏิเสธ
 -- (ถ้าต้องแก้จริง ให้เพิ่มแถวใหม่ที่อธิบายการแก้ใน note แทน)

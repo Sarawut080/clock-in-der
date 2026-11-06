@@ -104,6 +104,13 @@ class InMemoryAttendanceRepository(AttendanceRepository):
     def events_of(self, employee_id: int, day: date) -> list[AttendanceEvent]:
         return self._events_of(employee_id, day)
 
+    def events_between(self, start: date, end: date, employee_id: Optional[int] = None) -> list[AttendanceEvent]:
+        rows = [
+            e for e in self._events
+            if start <= e.recorded_at.date() <= end and (employee_id is None or e.employee_id == employee_id)
+        ]
+        return sorted(rows, key=lambda e: (e.recorded_at, e.id))
+
     def count(self) -> int:
         return len(self._events)
 

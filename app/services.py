@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Optional
 
 from .errors import ApiError
-from .mock_store import ServerClock
+from .mock_store import BKK, ServerClock
 from .models import AttendanceEvent, DaySummary, Employee
 from .repositories import AttendanceRepository, EmployeeRepository
 
@@ -142,10 +142,8 @@ class ReportService:
         self._employees = employees
         self._attendance = attendance
 
-    def _row(self, emp: Employee, day: dt.date) -> Optional[dict]:
-        events = self._attendance.events_of(emp.id, day)
-        if not events:
-            return None
+    @staticmethod
+    def _row(emp: Employee, events: list[AttendanceEvent]) -> dict:
         s = AttendanceSummarizer.summarize(events)
         return {
             "employee_id": emp.id,
@@ -157,20 +155,25 @@ class ReportService:
             "events": [e.to_api() for e in events],
         }
 
-    def daily(self, day: dt.date) -> list[dict]:
+    def _rows(self, start: dt.date, end: dt.date, employee_id: Optional[int]) -> list[tuple[dt.date, dict]]:
+        # ถามฐานข้อมูล 2 ครั้งทั้งช่วง (พนักงาน + เหตุการณ์) แล้วจัดกลุ่มเป็น (วัน, คน) ที่นี่ — ไม่ถามทีละคนทีละวัน
         # รวมพนักงานที่ปิดใช้งานแล้วด้วย — ประวัติของคนที่ลาออกยังต้องตรวจย้อนหลังได้
-        rows = (self._row(e, day) for e in self._employees.list_all())
-        return [r for r in rows if r]
-
-    def range(self, start: dt.date, end: dt.date, employee_id: Optional[int]) -> list[dict]:
+        employees = [e for e in self._employees.list_all() if employee_id is None or e.id == employee_id]
+        grouped: dict[tuple[dt.date, int], list[AttendanceEvent]] = {}
+        for ev in self._attendance.events_between(start, end, employee_id):
+            grouped.setdefault((ev.recorded_at.astimezone(BKK).date(), ev.employee_id), []).append(ev)
         out = []
         day = start
         while day <= end:
-            for emp in self._employees.list_all():
-                if employee_id is not None and emp.id != employee_id:
-                    continue
-                row = self._row(emp, day)
-                if row:
-                    out.append({"date": day.isoformat(), **row})
+            for emp in employees:
+                events = grouped.get((day, emp.id))
+                if events:
+                    out.append((day, self._row(emp, events)))
             day += dt.timedelta(days=1)
         return out
+
+    def daily(self, day: dt.date) -> list[dict]:
+        return [row for _, row in self._rows(day, day, None)]
+
+    def range(self, start: dt.date, end: dt.date, employee_id: Optional[int]) -> list[dict]:
+        return [{"date": day.isoformat(), **row} for day, row in self._rows(start, end, employee_id)]

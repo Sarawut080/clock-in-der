@@ -205,6 +205,18 @@ class PgAttendanceRepository(AttendanceRepository):
             ).fetchall()
         return [_event(r) for r in rows]
 
+    def events_between(self, start: date, end: date, employee_id: Optional[int] = None) -> list[AttendanceEvent]:
+        lower, _ = _day_bounds(start)
+        _, upper = _day_bounds(end)
+        sql = f"SELECT {self._COLUMNS} FROM attendance WHERE recorded_at >= %s AND recorded_at < %s"
+        params: list = [lower, upper]
+        if employee_id is not None:
+            sql += " AND employee_id = %s"
+            params.append(employee_id)
+        with self._db.connection() as conn:
+            rows = conn.execute(sql + " ORDER BY recorded_at, id", params).fetchall()
+        return [_event(r) for r in rows]
+
     def count(self) -> int:
         with self._db.connection() as conn:
             return conn.execute("SELECT count(*) FROM attendance").fetchone()[0]

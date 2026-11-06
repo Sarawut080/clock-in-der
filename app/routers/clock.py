@@ -2,6 +2,7 @@
 from typing import Optional
 
 from fastapi import APIRouter, File, Form, Request, UploadFile
+from starlette.concurrency import run_in_threadpool
 
 from ..auth import AuthGuard
 from ..errors import ApiError
@@ -50,7 +51,8 @@ class ClockRouter:
     ):
         own_id = self._own_id(request, employee_id)
         content = await self._read_limited(photo)
-        event = self._service.clock(own_id, clock_type, content)
+        # เขียนไฟล์ + DB เป็นงาน sync: ส่งไป threadpool ไม่ให้คำขอของคนอื่นต้องรอระหว่างบันทึก
+        event = await run_in_threadpool(self._service.clock, own_id, clock_type, content)
         return {
             "ok": True,
             "id": event.id,

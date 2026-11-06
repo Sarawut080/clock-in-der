@@ -42,6 +42,28 @@ class LiveHours {
   }
 }
 
+const PHOTO_MAX_SIDE = 1280;  // ด้านยาวสุดของรูปที่ส่ง — ยังเห็นหน้าคนชัด
+const PHOTO_QUALITY = 0.8;
+
+// ย่อรูปจากกล้องมือถือ (2–6 MB) เหลือราว 200 KB ก่อนอัปโหลด: บันทึกเร็วขึ้นมาก และวาดใหม่ลง canvas จึงไม่มีพิกัด/EXIF ติดไป
+// ย่อไม่ได้ (เช่น เบราว์เซอร์เปิด HEIC ไม่ได้) → ส่งไฟล์เดิม ไม่ทำให้บันทึกไม่ได้
+async function shrinkPhoto(file) {
+  try {
+    const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+    const scale = Math.min(1, PHOTO_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", PHOTO_QUALITY));
+    if (!blob) return file;
+    return new File([blob], "photo.jpg", { type: "image/jpeg" });
+  } catch {
+    return file;
+  }
+}
+
 class WorkerPage {
   constructor(api, notice) {
     this.api = api;
@@ -49,6 +71,7 @@ class WorkerPage {
     this.employeeId = null;
     this.nextType = null;
     this.photo = null;
+    this.upload = null;
     this.previewUrl = null;
     this.live = null;
     this.openSinceText = null;
@@ -198,6 +221,7 @@ class WorkerPage {
   clearPhoto() {
     if (this.previewUrl) URL.revokeObjectURL(this.previewUrl);
     this.photo = null;
+    this.upload = null;
     this.previewUrl = null;
     $("photo").value = "";
     $("preview").hidden = true;
@@ -243,6 +267,7 @@ class WorkerPage {
     if (!file) return;
     if (this.previewUrl) URL.revokeObjectURL(this.previewUrl);
     this.photo = file;
+    this.upload = null;  // รูปที่ย่อแล้ว — ย่อตอนกดบันทึกครั้งแรก กดซ้ำหลังเน็ตหลุดใช้ตัวเดิม
     this.previewUrl = URL.createObjectURL(file);
     $("preview").src = this.previewUrl;
     $("preview").hidden = false;
@@ -258,12 +283,12 @@ class WorkerPage {
 
   async onConfirm() {
     if (!this.photo) return;
-    const form = new FormData();
-    form.append("type", this.nextType);
-    form.append("photo", this.photo);
-
-    $("confirm-btn").disabled = true;  // กันกดซ้ำระหว่างรออัปโหลด
+    $("confirm-btn").disabled = true;  // กันกดซ้ำระหว่างย่อรูป/รออัปโหลด
     try {
+      const form = new FormData();
+      form.append("type", this.nextType);
+      this.upload ??= await shrinkPhoto(this.photo);
+      form.append("photo", this.upload);
       const result = await this.api.request("/api/clock", { method: "POST", body: form });
       const message = `บันทึก${LABEL[result.type]}แล้ว`;
       const time = hhmm(result.recorded_at) + " น.";

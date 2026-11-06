@@ -7,6 +7,8 @@ from typing import Optional
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.gzip import GZipMiddleware
+from starlette.types import Receive, Scope, Send
 
 from . import errors
 from .container import Container
@@ -21,6 +23,16 @@ BASE = Path(__file__).resolve().parent
 STATIC_REF = re.compile(r'((?:src|href)=")/static/([^"?#]+)(")')
 
 
+class TextGZipMiddleware(GZipMiddleware):
+    """บีบ HTML/JS/CSS/JSON ให้เล็กลง แต่ข้ามรูปพนักงาน — JPEG บีบซ้ำไม่เล็กลง เปลือง CPU เปล่าๆ"""
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http" and scope["path"].startswith("/photos/"):
+            await self.app(scope, receive, send)
+            return
+        await super().__call__(scope, receive, send)
+
+
 class ClockInApp:
     def __init__(self, container: Container | None = None, static_dir: Path = BASE / "static"):
         self.container = container or Container.from_env()
@@ -28,6 +40,7 @@ class ClockInApp:
         self._asset_versions: dict[str, tuple[tuple[int, int], str]] = {}
         self.app = FastAPI(title="ระบบบันทึกเข้า-ออกงานด้วยรูปถ่าย (mockup)", lifespan=self._lifespan)
         self.app.middleware("http")(self._protective_headers)
+        self.app.add_middleware(TextGZipMiddleware, minimum_size=1024)
         self._register_routes()
         self.app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
